@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drug Sample Registry — Uttarakhand AYUSH</title>
+<style>
+:root {
+  --ink:#1a1f2e; --ink-mid:#3d4a5c; --ink-soft:#6b7a8d;
+  --border:#d0d9e4; --bg:#f4f7fb; --surface:#fff;
+  --green:#1d5c3a; --green-l:#e8f4ed; --green-d:#165030;
+  --saffron:#e8750a; --saffron-l:#fef3e8; --saffron-d:#c4610a;
+  --sky:#1e6fa8; --sky-l:#e8f3fb;
+  --red:#c0392b; --red-l:#fdf0ef;
+  --gold:#b8860b; --gold-l:#fdf8e8;
+  --r:8px; --sh:0 2px 12px rgba(0,0,0,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;}
+.hdr{background:linear-gradient(135deg,var(--green),#2a7a4f);color:#fff;padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100;box-shadow:0 2px 14px rgba(0,0,0,.2);}
+.hdr-brand{display:flex;align-items:center;gap:10px;}
+.hdr-brand h1{font-size:15px;font-weight:700;}
+.hdr-brand p{font-size:10px;opacity:.7;}
+.hdr-right{display:flex;align-items:center;gap:10px;}
+.user-pill{background:rgba(255,255,255,.15);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;}
+.btn-logout{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;}
+.btn-logout:hover{background:rgba(255,255,255,.25);}
+.layout{display:flex;min-height:calc(100vh - 56px);}
+.sidebar{width:210px;background:var(--surface);border-right:1px solid var(--border);padding:12px 0;flex-shrink:0;position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto;}
+.sec-label{padding:6px 16px 3px;font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--ink-soft);text-transform:uppercase;margin-top:6px;}
+.nav-item{display:flex;align-items:center;gap:8px;padding:9px 16px;cursor:pointer;border-left:3px solid transparent;transition:all .15s;font-size:13px;color:var(--ink-mid);}
+.nav-item:hover{background:var(--bg);}
+.nav-item.active{background:var(--green-l);border-left-color:var(--green);color:var(--green);font-weight:600;}
+.main{flex:1;padding:22px;overflow-x:hidden;}
+.pg-title{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap;}
+.pg-title h2{font-size:19px;font-weight:700;}
+.pg-title p{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+.card{background:var(--surface);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh);padding:18px;margin-bottom:18px;}
+.card-title{font-size:13px;font-weight:700;margin-bottom:12px;color:var(--ink);}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:18px;}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 15px;position:relative;overflow:hidden;}
+.stat::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
+.stat.total::before{background:var(--saffron);}
+.stat.sent::before{background:var(--sky);}
+.stat.sq::before{background:var(--green);}
+.stat.nsq::before{background:var(--red);}
+.stat.pending::before{background:var(--gold);}
+.stat-label{font-size:10px;color:var(--ink-soft);font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
+.stat-val{font-size:26px;font-weight:800;line-height:1.1;margin-top:3px;}
+.stat.total .stat-val{color:var(--saffron);}
+.stat.sent .stat-val{color:var(--sky);}
+.stat.sq .stat-val{color:var(--green);}
+.stat.nsq .stat-val{color:var(--red);}
+.stat.pending .stat-val{color:var(--gold);}
+.btn{padding:7px 14px;border-radius:6px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s;display:inline-flex;align-items:center;gap:6px;}
+.btn-green{background:var(--green);color:#fff;}
+.btn-green:hover{background:var(--green-d);}
+.btn-saffron{background:var(--saffron);color:#fff;}
+.btn-saffron:hover{background:var(--saffron-d);}
+.btn-outline{background:var(--bg);color:var(--ink-mid);border:1px solid var(--border);}
+.btn-outline:hover{background:var(--border);}
+.btn-sm{padding:5px 10px;font-size:12px;}
+.tbl-wrap{overflow-x:auto;border-radius:var(--r);}
+table{width:100%;border-collapse:collapse;font-size:12.5px;}
+table th{background:var(--ink);color:#fff;padding:9px 11px;text-align:left;font-size:11px;font-weight:700;letter-spacing:.03em;white-space:nowrap;}
+table td{padding:8px 11px;border-bottom:1px solid var(--border);vertical-align:middle;}
+table tr:hover td{background:var(--bg);}
+.nowrap{white-space:nowrap;}
+.wrap{white-space:normal;max-width:180px;}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;}
+.b-sent{background:var(--sky-l);color:var(--sky);}
+.b-sq{background:var(--green-l);color:var(--green);}
+.b-nsq{background:var(--red-l);color:var(--red);}
+.b-draft{background:#f0f0f0;color:#666;}
+.b-pending{background:var(--gold-l);color:var(--gold);}
+/* FORM */
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:13px;}
+.fg{display:flex;flex-direction:column;gap:3px;}
+.fg.full{grid-column:1/-1;}
+.fg label{font-size:11.5px;font-weight:600;color:var(--ink-mid);}
+.fg label .req{color:var(--red);}
+input,select,textarea{border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;font-family:inherit;color:var(--ink);background:#fff;width:100%;transition:border .15s;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(29,92,58,.1);}
+input[readonly]{background:#f4f7fb;color:var(--ink-soft);}
+textarea{resize:vertical;min-height:58px;}
+.fsec{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--green);border-bottom:2px solid var(--green-l);padding-bottom:5px;margin-top:4px;grid-column:1/-1;}
+/* conditional row highlight */
+.frow-medicine{} 
+.frow-raw{}
+/* type indicator pill */
+.type-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;}
+.tp-med{background:var(--sky-l);color:var(--sky);}
+.tp-raw{background:#f0f4e8;color:#5a7a1a;}
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(10,20,40,.55);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:20px 14px;overflow-y:auto;}
+.modal{background:#fff;border-radius:12px;width:100%;max-width:830px;box-shadow:0 8px 40px rgba(0,0,0,.2);}
+.mhdr{background:linear-gradient(135deg,var(--green),#2a7a4f);color:#fff;padding:15px 20px;display:flex;align-items:center;justify-content:space-between;border-radius:12px 12px 0 0;}
+.mhdr h3{font-size:16px;font-weight:700;}
+.mhdr p{font-size:11px;opacity:.8;margin-top:2px;}
+.mclose{background:rgba(255,255,255,.15);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:17px;line-height:1;}
+.mclose:hover{background:rgba(255,255,255,.3);}
+.mbody{padding:18px;max-height:75vh;overflow-y:auto;}
+.mfoot{padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:9px;}
+/* LOGIN */
+.login-wrap{min-height:100vh;background:linear-gradient(135deg,#0f3d2b,#1d5c3a,#2a7a4f);display:flex;align-items:center;justify-content:center;padding:20px;}
+.login-box{background:#fff;border-radius:16px;padding:34px;width:100%;max-width:390px;box-shadow:0 20px 60px rgba(0,0,0,.3);}
+.login-logo{text-align:center;margin-bottom:22px;}
+.login-logo .icon{font-size:42px;}
+.login-logo h1{font-size:19px;font-weight:800;color:var(--green);margin-top:7px;}
+.login-logo p{font-size:11px;color:var(--ink-soft);}
+.login-box .fg{margin-bottom:12px;}
+.login-err{background:var(--red-l);color:var(--red);border-radius:6px;padding:9px 12px;font-size:13px;margin-bottom:12px;}
+.fbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;background:var(--bg);border-bottom:1px solid var(--border);}
+.fbar input,.fbar select{padding:6px 9px;font-size:12px;width:auto;}
+.fbar input{min-width:170px;flex:1;}
+.tabs{display:flex;border-bottom:2px solid var(--border);margin-bottom:0;padding:0 14px;}
+.tab{padding:8px 14px;font-size:12.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s;}
+.tab.active{color:var(--green);border-bottom-color:var(--green);}
+.action-btns{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.action-btn-tile{padding:22px 18px;cursor:pointer;border:none;background:#fff;border-top:1px solid var(--border);transition:background .15s;text-align:left;}
+.action-btn-tile:first-child{border-right:1px solid var(--border);}
+.action-btn-tile:hover{background:var(--bg);}
+.action-btn-tile .abt-icon{font-size:26px;margin-bottom:6px;}
+.action-btn-tile h4{font-size:14px;font-weight:700;margin-bottom:3px;}
+.action-btn-tile p{font-size:12px;color:var(--ink-soft);}
+.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:9px;}
+.di label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:700;}
+.di p{font-size:13px;margin-top:2px;word-break:break-word;}
+.alert{padding:10px 13px;border-radius:6px;font-size:13px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;}
+.alert-ok{background:var(--green-l);color:var(--green);border:1px solid #aed9c0;}
+.alert-err{background:var(--red-l);color:var(--red);border:1px solid #f5b7b1;}
+.empty{text-align:center;padding:44px 20px;color:var(--ink-soft);}
+.empty .eicon{font-size:42px;display:block;margin-bottom:10px;}
+.serial{font-family:'Courier New',monospace;font-size:12px;font-weight:700;color:var(--green);}
+.usermenu-item{display:block;width:100%;padding:10px 14px;text-align:left;border:none;background:none;cursor:pointer;font-size:13px;font-family:inherit;color:var(--ink);}
+.usermenu-item:hover{background:var(--bg);}
+/* conditional field visibility */
+.field-medicine{} 
+.field-raw{}
+.hidden{display:none!important;}
+@media(max-width:720px){.sidebar{display:none;}.main{padding:12px;}.action-btns{grid-template-columns:1fr;}}
+
+.loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,.85);z-index:500;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;}
+.spinner{width:40px;height:40px;border:4px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-overlay p{color:var(--green);font-weight:600;font-size:14px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="loader" class="loading-overlay"><div class="spinner"></div><p>Loading...</p></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// DRUG PORTAL — Uttarakhand AYUSH Drug Control Section
+// Backend: Supabase
+// ═══════════════════════════════════════════════════════
+
+const SUPA_URL = "https://oouhewryfezculmfzocu.supabase.co";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vdWhld3J5ZmV6Y3VsbWZ6b2N1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMTY1NTgsImV4cCI6MjA5NjY5MjU1OH0.DDhj5jNHSHPy5oBGt53BheJkOhzIimBkP7lkOMb1JUg";
+
+// ── Supabase API helpers ──────────────────────────────────────────────────────
+async function sbFetch(path, opts={}) {
+  const r = await fetch(SUPA_URL + path, {
+    ...opts,
+    headers: {
+      "apikey": SUPA_KEY,
+      "Authorization": "Bearer " + SUPA_KEY,
+      "Content-Type": "application/json",
+      "Prefer": opts.prefer || "",
+      ...(opts.headers||{})
+    }
+  });
+  if (!r.ok) {
+    const err = await r.text();
+    throw new Error(err);
+  }
+  const txt = await r.text();
+  return txt ? JSON.parse(txt) : {};
+}
+
+async function sbSelect(table, params="") {
+  return sbFetch(`/rest/v1/${table}?${params}`);
+}
+async function sbInsert(table, data) {
+  return sbFetch(`/rest/v1/${table}`, {
+    method:"POST", prefer:"return=representation",
+    body: JSON.stringify(data)
+  });
+}
+async function sbUpdate(table, match, data) {
+  return sbFetch(`/rest/v1/${table}?${match}`, {
+    method:"PATCH", prefer:"return=representation",
+    body: JSON.stringify(data)
+  });
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const DISTRICTS=['Dehradun','Haridwar','Uttarkashi','Tehri','Pauri','Rudraprayag',
+  'Chamoli','Bageshwar','Almora','Pithoragarh','Champawat','Nainital','Udham Singh Nagar'];
+const DIST_CODE={Dehradun:'DDN',Haridwar:'HDR',Uttarkashi:'UKI',Tehri:'THR',
+  Pauri:'PRG',Rudraprayag:'RPG',Chamoli:'CHL',Bageshwar:'BGS',
+  Almora:'ALM',Pithoragarh:'PTG',Champawat:'CPT',Nainital:'NTL','Udham Singh Nagar':'USN'};
+const DOSAGE_FORMS=['Syrup','Churna','Tablet','Capsule','Vati','Gutika','Avaleha',
+  'Arista','Asava','Taila','Ghrita','Bhasma','Kwath Churna','Arka','Lepa Churna',
+  'Rasayan','Khand','Arq','Powder','Other'];
+const COL_SOURCES=['Market','Manufacturing Premise','Govt Supply','Complaint location','Random'];
+const SUSPICION=['Normal','Misbranded','Adulterated','Spurious','Substandard'];
+const LABS=[
+  'State Ayurvedic Drug Testing Laboratory, Haridwar',
+  'M/s Devansh Testing & Research Laboratory Ltd., Lakeshwari, Roorkee Haridwar.',
+  'M/s Selqet Testing & Research Laboratory, Roorkee, Haridwar',
+  'M/s Patanjali Research Foundation, Haridwar',
+  'M/s Multani Pharmaceuticals Ltd. Testing Laboratory, Delhi',
+  'M/s Sanskar Testing & Research Laboratory, Haridwar',
+  'IMPCL Laboratory, Mohan (Almora)'
+];
+const FYS=['2022-23','2023-24','2024-25','2025-26','2026-27'];
+const DI_FILTERS=[
+  {label:'All Entries',value:''},
+  {label:'DI — Udham Singh Nagar',value:'Udham Singh Nagar'},
+  {label:'DI — Tehri',value:'Tehri'},
+  {label:'DI — Pauri',value:'Pauri'},
+  {label:'DI — Nainital',value:'Nainital'},
+  {label:'DI — Almora',value:'Almora'},
+  {label:'DI — Pithoragarh',value:'Pithoragarh'},
+  {label:'DI — Champawat',value:'Champawat'},
+  {label:'DI — Haridwar',value:'Haridwar'},
+  {label:'DI — Uttarkashi',value:'Uttarkashi'},
+  {label:'DI — Rudraprayag',value:'Rudraprayag'},
+  {label:'DI — Chamoli',value:'Chamoli'},
+  {label:'DI — Bageshwar',value:'Bageshwar'},
+  {label:'DI — Dehradun',value:'Dehradun'},
+  {label:'ADC (State Level)',value:'All'},
+];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let S = {
+  user: null, page: 'dashboard',
+  samples: [], samplesLoaded: false,
+  modal: null, activeSample: null,
+  fSearch:'', fFY:'', fTab:'all', fDI:'',
+  sortCol:'date_of_sampling', sortDir:-1,
+  alert: null, loginErr: null,
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function today(){ return new Date().toISOString().split('T')[0]; }
+function g(id){ return (document.getElementById(id)||{}).value||''; }
+function loader(show){ document.getElementById('loader').style.display = show?'flex':'none'; }
+
+function statusBadge(s){
+  const m={Sent:'b-sent',Reported:'b-sq',Draft:'b-draft'};
+  return `<span class="badge ${m[s]||'b-draft'}">${s||'Draft'}</span>`;
+}
+function findingBadge(f){
+  if(!f||f==='Pending') return `<span class="badge b-pending">Pending</span>`;
+  if(f==='Standard Quality') return `<span class="badge b-sq">✅ Standard</span>`;
+  if(f==='Not of Standard Quality') return `<span class="badge b-nsq">❌ Not Standard</span>`;
+  return `<span class="badge b-draft">${f}</span>`;
+}
+function shortLab(l){
+  if(!l) return '';
+  return l.replace('State Ayurvedic Drug Testing Laboratory, Haridwar','State DTL')
+    .replace('M/s Devansh Testing & Research Laboratory Ltd., Lakeshwari, Roorkee Haridwar.','Devansh Lab')
+    .replace('M/s Selqet Testing & Research Laboratory, Roorkee, Haridwar','Selqet Lab')
+    .replace('M/s Patanjali Research Foundation, Haridwar','Patanjali Lab')
+    .replace('M/s Multani Pharmaceuticals Ltd. Testing Laboratory, Delhi','Multani Lab')
+    .replace('M/s Sanskar Testing & Research Laboratory, Haridwar','Sanskar Lab')
+    .replace('IMPCL Laboratory, Mohan (Almora)','IMPCL Lab');
+}
+function canManage(s){
+  const r=S.user.role;
+  if(r==='admin'||r==='adc') return true;
+  return r==='di' && s.district===S.user.district;
+}
+function genSerial(district,fy,role){
+  const pfx=role==='adc'?'ADC-UK':`DI-${DIST_CODE[district]||'UK'}`;
+  const n=S.samples.filter(x=>x.regulatory_serial&&x.regulatory_serial.startsWith(pfx)&&x.financial_year===fy).length+1;
+  return `${pfx}-${String(n).padStart(4,'0')}/${fy}`;
+}
+
+function filteredSamples(){
+  let s=[...S.samples];
+  const r=S.user.role;
+  if(r==='di') s=s.filter(x=>x.district===S.user.district);
+  if(S.fDI && (r==='adc'||r==='admin')) s=s.filter(x=>x.district===S.fDI);
+  if(S.fFY) s=s.filter(x=>x.financial_year===S.fFY);
+  if(S.fSearch){
+    const q=S.fSearch.toLowerCase();
+    s=s.filter(x=>
+      (x.sample_name||'').toLowerCase().includes(q)||
+      (x.regulatory_serial||'').toLowerCase().includes(q)||
+      (x.manufacturer_name||'').toLowerCase().includes(q)||
+      (x.batch_number||'').toLowerCase().includes(q)||
+      (x.lot_number||'').toLowerCase().includes(q)
+    );
+  }
+  if(S.fTab==='sent')     s=s.filter(x=>x.workflow_status==='Sent');
+  if(S.fTab==='reported') s=s.filter(x=>x.workflow_status==='Reported');
+  if(S.fTab==='sq')  s=s.filter(x=>x.analytical_finding==='Standard Quality');
+  if(S.fTab==='nsq') s=s.filter(x=>x.analytical_finding==='Not of Standard Quality');
+  const col=S.sortCol, dir=S.sortDir;
+  s.sort((a,b)=>{
+    const av=String(a[col]||'').toLowerCase(), bv=String(b[col]||'').toLowerCase();
+    return av<bv?-dir:av>bv?dir:0;
+  });
+  return s;
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function render(){
+  const app=document.getElementById('app');
+  if(S.page==='public'){app.innerHTML=renderPublic();bindPublic();return;}
+  if(!S.user){app.innerHTML=renderLogin();bindLogin();return;}
+  app.innerHTML=`${renderHeader()}<div class="layout">${renderSidebar()}<main class="main">${S.alert?renderAlert():''}<div id="page-content">${renderPage()}</div></main></div>${S.modal?renderModal():''}`;
+  bindAll();
+}
+
+// ── LOGIN ─────────────────────────────────────────────────────────────────────
+function renderLogin(){
+  return `<div class="login-wrap"><div class="login-box">
+  <div class="login-logo"><div class="icon">🧪</div><h1>Drug Sample Registry</h1><p>Uttarakhand AYUSH — Drug Control Section</p></div>
+  ${S.loginErr?`<div class="login-err">⚠️ ${S.loginErr}</div>`:''}
+  <div class="fg"><label>Username</label><input type="text" id="lu" placeholder="e.g. di.usnagar / adc"></div>
+  <div class="fg"><label>Password</label><input type="password" id="lp" placeholder="Password"></div>
+  <button class="btn btn-green" style="width:100%;margin-top:10px;padding:10px;" id="lbtn">Login →</button>
+  <div style="margin-top:14px;padding:10px;background:#f4f7fb;border-radius:7px;font-size:11px;color:#6b7a8d;">
+    <strong>Drug Inspector usernames:</strong><br>
+    di.usnagar · di.tehri · di.pauri · di.nainital · di.almora<br>
+    di.pithoragarh · di.champawat · di.haridwar · di.uttarkashi<br>
+    di.rudraprayag · di.chamoli · di.bageshwar · di.dehradun<br>
+    <strong>ADC:</strong> adc &nbsp;|&nbsp; <strong>Admin:</strong> admin
+  </div>
+  <div style="margin-top:10px;text-align:center;">
+    <button id="btn-public" style="background:none;border:none;color:var(--green);font-size:13px;font-weight:600;cursor:pointer;text-decoration:underline;">🔍 Public Drug Testing Reports</button>
+  </div>
+</div></div>`;
+}
+
+function bindLogin(){
+  document.getElementById('lbtn').onclick=doLogin;
+  document.getElementById('lp').onkeydown=e=>{if(e.key==='Enter')doLogin();};
+  const pb=document.getElementById('btn-public');
+  if(pb) pb.onclick=()=>{S.page='public';render();};
+}
+
+async function doLogin(){
+  const u=document.getElementById('lu').value.trim();
+  const p=document.getElementById('lp').value;
+  if(!u||!p){S.loginErr='Username aur password dono bharo.';render();bindLogin();return;}
+  loader(true);
+  try{
+    const rows=await sbSelect('users',`username=eq.${encodeURIComponent(u)}&select=*`);
+    if(!rows||rows.length===0){S.loginErr='Username nahi mila.';loader(false);render();bindLogin();return;}
+    const usr=rows[0];
+    if(usr.password!==p){S.loginErr='Password galat hai.';loader(false);render();bindLogin();return;}
+    S.user=usr;
+    S.loginErr=null;
+    await loadSamples();
+    loader(false);
+    render();
+  }catch(e){
+    S.loginErr='Server error: '+e.message;
+    loader(false);render();bindLogin();
+  }
+}
+
+// ── LOAD SAMPLES ─────────────────────────────────────────────────────────────
+async function loadSamples(){
+  try{
+    // Load all samples ordered by date desc
+    const rows = await sbSelect('samples','select=*&order=date_of_sampling.desc,created_at.desc&limit=2000');
+    S.samples = rows || [];
+    S.samplesLoaded = true;
+  }catch(e){
+    console.error('Load samples error:',e);
+    S.samples=[];
+  }
+}
+
+// ── HEADER ────────────────────────────────────────────────────────────────────
+function renderHeader(){
+  const rl={di:'Drug Inspector',adc:'Asst. Drug Controller',admin:'Admin'}[S.user.role]||'';
+  return `<header class="hdr">
+    <div class="hdr-brand"><div style="font-size:22px;">🧪</div><div><h1>Drug Sample Registry — Uttarakhand AYUSH</h1><p>Drug Control Section · ${S.user.district==='All'?'All Districts':S.user.district}</p></div></div>
+    <div class="hdr-right">
+      <div style="position:relative;">
+        <button id="usermenu-btn" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;">
+          👤 ${S.user.name} <span style="opacity:.7;font-size:10px;">▼</span>
+        </button>
+        <div id="usermenu-drop" style="display:none;position:absolute;right:0;top:38px;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.15);min-width:200px;z-index:300;overflow:hidden;">
+          <div style="padding:10px 14px;background:var(--green-l);border-bottom:1px solid var(--border);">
+            <div style="font-size:13px;font-weight:700;color:var(--green);">${S.user.name}</div>
+            <div style="font-size:11px;color:var(--ink-soft);">${rl} · ${S.user.district==='All'?'All Districts':S.user.district}</div>
+            <div style="font-size:10px;color:var(--ink-soft);margin-top:2px;">@${S.user.username}</div>
+          </div>
+          <button class="usermenu-item" id="btn-editprofile">👤 Edit Profile</button>
+          <button class="usermenu-item" id="btn-changepwd">🔑 Change Password</button>
+          <div style="border-top:1px solid var(--border);"></div>
+          <button class="usermenu-item" id="logout" style="color:var(--red);">🚪 Logout</button>
+        </div>
+      </div>
+    </div>
+  </header>`;
+}
+
+// ── SIDEBAR ───────────────────────────────────────────────────────────────────
+function renderSidebar(){
+  const r=S.user.role;
+  const items=[
+    {id:'dashboard',icon:'📊',label:'Dashboard'},
+    {id:'samples',icon:'🔬',label:'Sample Registry'},
+  ];
+  if(r!=='viewer') items.push({id:'new',icon:'➕',label:'New Sample Entry'});
+  if(r==='adc'||r==='admin') items.push({id:'reports',icon:'📈',label:'Reports'});
+  return `<aside class="sidebar">
+    <div class="sec-label">Menu</div>
+    ${items.map(i=>`<div class="nav-item ${S.page===i.id?'active':''}" data-pg="${i.id}">${i.icon} ${i.label}</div>`).join('')}
+    <div class="sec-label" style="margin-top:16px;">District</div>
+    <div style="padding:5px 12px;"><div style="background:var(--green-l);color:var(--green);padding:5px 10px;border-radius:6px;font-size:12px;font-weight:700;">${S.user.district==='All'?'All Districts':S.user.district}</div></div>
+  </aside>`;
+}
+
+function renderAlert(){
+  return `<div class="alert alert-${S.alert.type==='ok'?'ok':'err'}"><span>${S.alert.msg}</span><span style="cursor:pointer;font-size:18px;" id="acl">×</span></div>`;
+}
+
+function renderPage(){
+  if(S.page==='dashboard') return renderDash();
+  if(S.page==='samples')   return renderSamples();
+  if(S.page==='new')       return renderNewPage();
+  if(S.page==='reports')   return renderReports();
+  return renderDash();
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────────────────────
+function renderDash(){
+  let s=S.samples;
+  const r=S.user.role;
+  if(r==='di') s=s.filter(x=>x.district===S.user.district);
+  const tot=s.length;
+  const sent=s.filter(x=>x.workflow_status==='Sent').length;
+  const sq=s.filter(x=>x.analytical_finding==='Standard Quality').length;
+  const nsq=s.filter(x=>x.analytical_finding==='Not of Standard Quality').length;
+  const pend=s.filter(x=>x.analytical_finding==='Pending').length;
+  const recent=s.slice(0,8);
+  const dm={};DISTRICTS.forEach(d=>{dm[d]=s.filter(x=>x.district===d).length;});
+  return `
+  <div class="pg-title">
+    <div><h2>Dashboard</h2><p>Drug Sampling Surveillance — Uttarakhand</p></div>
+    ${r!=='viewer'?`<button class="btn btn-saffron" data-act="new">➕ New Sample Entry</button>`:''}
+  </div>
+  <div class="stats">
+    <div class="stat total"><div class="stat-label">Total Samples</div><div class="stat-val">${tot}</div></div>
+    <div class="stat sent"><div class="stat-label">Awaiting Report</div><div class="stat-val">${sent}</div></div>
+    <div class="stat sq"><div class="stat-label">Standard Quality</div><div class="stat-val">${sq}</div></div>
+    <div class="stat nsq"><div class="stat-label">Not of Std Quality</div><div class="stat-val">${nsq}</div></div>
+    <div class="stat pending"><div class="stat-label">Pending</div><div class="stat-val">${pend}</div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:3fr 2fr;gap:14px;">
+    <div class="card" style="padding:0;">
+      <div style="padding:14px 16px 0;"><div class="card-title">🕐 Recent Samples</div></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Serial</th><th>Drug</th><th>Type</th><th>District</th><th>Date</th><th>Status</th><th>Finding</th></tr></thead>
+        <tbody>${recent.map(x=>`<tr class="sr" data-id="${x.id}" style="cursor:pointer;">
+          <td class="serial nowrap">${x.regulatory_serial||''}</td>
+          <td><strong>${x.sample_name||''}</strong></td>
+          <td><span class="type-pill ${x.sample_type==='Raw Drug'?'tp-raw':'tp-med'}">${x.sample_type==='Raw Drug'?'🌿 Raw':'💊 Med'}</span></td>
+          <td class="nowrap">${x.district||''}</td>
+          <td class="nowrap">${x.date_of_sampling||''}</td>
+          <td>${statusBadge(x.workflow_status)}</td>
+          <td>${findingBadge(x.analytical_finding)}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📍 District-wise</div>
+      ${DISTRICTS.map(d=>{const c=dm[d]||0,mx=Math.max(...Object.values(dm),1);
+        return `<div style="margin-bottom:7px;"><div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:2px;"><span>${d}</span><strong>${c}</strong></div>
+        <div style="background:var(--border);border-radius:3px;height:5px;"><div style="background:var(--green);width:${Math.round(c/mx*100)}%;height:100%;border-radius:3px;"></div></div></div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+// ── SAMPLE LIST ───────────────────────────────────────────────────────────────
+function sortTh(col,label){
+  const active=S.sortCol===col;
+  const arrow=active?(S.sortDir===1?'↑':'↓'):'↕';
+  return `<th style="${active?'background:#2a4a3a;':''}cursor:pointer;white-space:nowrap;" data-sort="${col}">${label} <span style="opacity:${active?1:0.35};font-size:10px;">${arrow}</span></th>`;
+}
+
+function renderSamples(){
+  const list=filteredSamples();
+  const r=S.user.role;
+  const showDIFilter=(r==='adc'||r==='admin');
+  return `
+  <div class="pg-title">
+    <div><h2>Sample Registry</h2><p>${list.length} records</p></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      ${r!=='viewer'?`<button class="btn btn-saffron" data-act="new">➕ New Sample</button>`:''}
+      <button class="btn btn-outline" id="btn-csv">⬇️ CSV (${list.length})</button>
+    </div>
+  </div>
+  <div class="card" style="padding:0;">
+    <div class="tabs">
+      <div class="tab ${S.fTab==='all'?'active':''}" data-tab="all">All (${S.samples.length})</div>
+      <div class="tab ${S.fTab==='sent'?'active':''}" data-tab="sent">Sent to Lab</div>
+      <div class="tab ${S.fTab==='reported'?'active':''}" data-tab="reported">Reported</div>
+      <div class="tab ${S.fTab==='sq'?'active':''}" data-tab="sq">✅ Standard</div>
+      <div class="tab ${S.fTab==='nsq'?'active':''}" data-tab="nsq">❌ NSQ</div>
+    </div>
+    <div class="fbar">
+      <input type="text" id="fsrch" placeholder="🔍 Search name, serial, batch..." value="${S.fSearch}" style="min-width:200px;flex:2;">
+      ${showDIFilter?`<select id="fdi" style="min-width:185px;">
+        ${DI_FILTERS.map(f=>`<option value="${f.value}" ${S.fDI===f.value?'selected':''}>${f.label}</option>`).join('')}
+      </select>`:''}
+      <select id="ffy"><option value="">All FY</option>
+        ${FYS.map(y=>`<option value="${y}" ${S.fFY===y?'selected':''}>${y}</option>`).join('')}
+      </select>
+      <button class="btn btn-outline btn-sm" id="fclr">Clear</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr>
+        ${sortTh('regulatory_serial','Serial No.')}
+        ${sortTh('sample_name','Drug Name')}
+        <th>Type</th><th>Category</th>
+        ${sortTh('district','District')}
+        ${sortTh('date_of_sampling','Date')}
+        ${sortTh('batch_number','Batch/Lot')}
+        ${sortTh('target_laboratory','Lab')}
+        ${sortTh('workflow_status','Status')}
+        ${sortTh('analytical_finding','Finding')}
+        <th>Action</th>
+      </tr></thead>
+      <tbody>${list.length===0
+        ?`<tr><td colspan="11"><div class="empty"><span class="eicon">🔬</span>No samples found</div></td></tr>`
+        :list.map(x=>`<tr>
+          <td class="serial nowrap">${x.regulatory_serial||''}</td>
+          <td><strong>${x.sample_name||''}</strong><br><span style="font-size:11px;color:var(--ink-soft)">${x.dosage_form||''} · ${x.financial_year||''}</span></td>
+          <td><span class="type-pill ${x.sample_type==='Raw Drug'?'tp-raw':'tp-med'}">${x.sample_type==='Raw Drug'?'🌿 Raw':'💊 Med'}</span></td>
+          <td style="font-size:11px;">${x.sample_category||'—'}</td>
+          <td class="nowrap">${x.district==='All'?'State Level':x.district||''}</td>
+          <td class="nowrap">${x.date_of_sampling||''}</td>
+          <td style="font-family:monospace;font-size:11.5px;">${x.sample_type==='Raw Drug'?(x.lot_number||'—'):(x.batch_number||'—')}</td>
+          <td style="font-size:10.5px;">${shortLab(x.target_laboratory||'')}</td>
+          <td>${statusBadge(x.workflow_status)}</td>
+          <td>${findingBadge(x.analytical_finding)}</td>
+          <td class="nowrap">${canManage(x)
+            ?`<button class="btn btn-saffron btn-sm action-open" data-id="${x.id}">⚡ Manage</button>`
+            :`<button class="btn btn-outline btn-sm view-btn" data-id="${x.id}">👁 View</button>`}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>
+  </div>`;
+}
+
+// ── NEW ENTRY ─────────────────────────────────────────────────────────────────
+function renderNewPage(){
+  return `<div class="pg-title"><div><h2>New Sample Entry</h2><p>Inspection ke dauran liye gaye drug sample ki entry</p></div></div>
+  <div class="card">${renderSampleForm('np',null)}
+    <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:18px;border-top:1px solid var(--border);padding-top:14px;">
+      <button class="btn btn-outline" id="np-cancel">Cancel</button>
+      <button class="btn btn-saffron" id="np-send">🚀 Save & Send to Lab</button>
+    </div>
+  </div>`;
+}
+
+// ── REPORTS ───────────────────────────────────────────────────────────────────
+function renderReports(){
+  const s=S.samples;
+  const nsq=s.filter(x=>x.analytical_finding==='Not of Standard Quality');
+  const byDist={};DISTRICTS.forEach(d=>{byDist[d]=s.filter(x=>x.district===d).length;});
+  const byFY={};FYS.forEach(y=>{byFY[y]=s.filter(x=>x.financial_year===y).length;});
+  return `<div class="pg-title"><div><h2>Reports & Analytics</h2></div></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+    <div class="card"><div class="card-title">📅 By Financial Year</div>
+      ${FYS.map(y=>{const c=byFY[y]||0,mx=Math.max(...Object.values(byFY),1);
+        return `<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;"><span>${y}</span><strong>${c}</strong></div>
+        <div style="background:var(--border);border-radius:3px;height:7px;"><div style="background:var(--saffron);width:${Math.round(c/mx*100)}%;height:100%;border-radius:3px;"></div></div></div>`;
+      }).join('')}
+    </div>
+    <div class="card"><div class="card-title">📍 By District</div>
+      ${DISTRICTS.map(d=>{const c=byDist[d]||0,mx=Math.max(...Object.values(byDist),1);
+        return `<div style="margin-bottom:7px;"><div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:2px;"><span>${d}</span><strong>${c}</strong></div>
+        <div style="background:var(--border);border-radius:3px;height:5px;"><div style="background:var(--green);width:${Math.round(c/mx*100)}%;height:100%;border-radius:3px;"></div></div></div>`;
+      }).join('')}
+    </div>
+  </div>
+  <div class="card"><div class="card-title" style="color:var(--red);">⚠️ Not of Standard Quality — ${nsq.length} samples</div>
+    ${nsq.length===0?'<div class="empty"><span class="eicon">✅</span>No NSQ samples</div>':`
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Serial</th><th>Drug</th><th>Type</th><th>Manufacturer</th><th>Batch/Lot</th><th>District</th><th>FY</th><th>Reported</th></tr></thead>
+      <tbody>${nsq.map(x=>`<tr>
+        <td class="serial">${x.regulatory_serial}</td><td><strong>${x.sample_name}</strong></td>
+        <td><span class="type-pill ${x.sample_type==='Raw Drug'?'tp-raw':'tp-med'}">${x.sample_type==='Raw Drug'?'🌿 Raw':'💊 Med'}</span></td>
+        <td style="font-size:11px;">${x.manufacturer_name}</td>
+        <td style="font-family:monospace;">${x.sample_type==='Raw Drug'?(x.lot_number||'—'):(x.batch_number||'—')}</td>
+        <td>${x.district}</td><td>${x.financial_year}</td><td>${x.lab_date_reported}</td>
+      </tr>`).join('')}
+      </tbody>
+    </table></div>`}
+  </div>`;
+}
+
+// ── SAMPLE FORM ───────────────────────────────────────────────────────────────
+function renderSampleForm(pfx,data){
+  const v=(f,def='')=>data?data[f]!==undefined&&data[f]!==null?data[f]:def:def;
+  const sel=(id,opts,val)=>`<select id="${pfx}_${id}">${opts.map(o=>`<option ${o===val?'selected':''}>${o}</option>`).join('')}</select>`;
+  const inp=(id,ph,val,type='text')=>`<input type="${type}" id="${pfx}_${id}" placeholder="${ph}" value="${String(val||'').replace(/"/g,'&quot;')}">`;
+  const isMed=v('sample_type','Medicine')==='Medicine';
+  const disDef=S.user.role==='adc'||S.user.role==='admin'?v('district','Dehradun'):v('district',S.user.district);
+  return `<div class="fgrid" id="${pfx}_grid">
+    <div class="fsec">🏷️ Sample Identification</div>
+    <div class="fg"><label>Financial Year <span class="req">*</span></label>${sel('fy',FYS,v('financial_year','2026-27'))}</div>
+    <div class="fg"><label>Sample / Drug Name <span class="req">*</span></label>
+      <input type="text" id="${pfx}_sname" placeholder="Name as on label" value="${String(v('sample_name','')).replace(/"/g,'&quot;')}">
+      <input type="hidden" id="${pfx}_mname" value="${String(v('sample_name','')).replace(/"/g,'&quot;')}">
+    </div>
+    <div class="fg"><label>Sample Type <span class="req">*</span></label>
+      <select id="${pfx}_stype"><option ${v('sample_type','Medicine')==='Medicine'?'selected':''}>Medicine</option><option ${v('sample_type')==='Raw Drug'?'selected':''}>Raw Drug</option></select>
+    </div>
+    <div class="fg" id="${pfx}_cat_row" ${!isMed?'style="display:none"':''}>
+      <label>Sample Category <span class="req">*</span></label>
+      <select id="${pfx}_scat"><option ${v('sample_category')==='Classical'?'selected':''}>Classical</option><option ${v('sample_category')==='Patent'?'selected':''}>Patent</option></select>
+    </div>
+    <div class="fg"><label>Enrolment Protocol <span class="req">*</span></label>
+      <select id="${pfx}_ep"><option ${v('enrolment_protocol')==='Legal'?'selected':''}>Legal</option><option ${v('enrolment_protocol')==='Survey'?'selected':''}>Survey</option></select>
+    </div>
+
+    <div class="fsec">🔍 Inspection Details</div>
+    <div class="fg"><label>Inspector</label><input type="text" id="${pfx}_insp" value="${v('inspector',S.user.name)}" readonly></div>
+    <div class="fg"><label>District <span class="req">*</span></label>
+      <select id="${pfx}_dist">${DISTRICTS.map(d=>`<option ${d===disDef?'selected':''}>${d}</option>`).join('')}</select>
+    </div>
+    <div class="fg"><label>Date of Sampling <span class="req">*</span></label><input type="date" id="${pfx}_dos" value="${v('date_of_sampling',today())}"></div>
+    <div class="fg"><label>Collection Source <span class="req">*</span></label>${sel('csrc',COL_SOURCES,v('collection_source','Market'))}</div>
+    <div class="fg full"><label>Collection Details (Shop/Address) <span class="req">*</span></label><textarea id="${pfx}_cdet">${v('collection_details')}</textarea></div>
+
+    <div class="fsec">🏭 Manufacturer Details</div>
+    <div class="fg full"><label>Manufacturer Name & Address <span class="req">*</span></label><textarea id="${pfx}_mfgname">${v('manufacturer_name')}</textarea></div>
+    <div class="fg"><label>License Number</label>${inp('lic','e.g. 526/2023',v('license_number','N/A'))}</div>
+    <div class="fg" id="${pfx}_batch_row" ${!isMed?'style="display:none"':''}><label>Batch Number <span class="req">*</span></label>${inp('batch','Batch No.',v('batch_number'))}</div>
+    <div class="fg" id="${pfx}_lot_row" ${isMed?'style="display:none"':''}><label>Lot Number</label>${inp('lot','Lot No.',v('lot_number'))}</div>
+    <div class="fg" id="${pfx}_mfgdate_row" ${!isMed?'style="display:none"':''}><label>Mfg. Date</label>${inp('mfgdate','MM-YYYY',v('mfg_date','N/A'))}</div>
+    <div class="fg" id="${pfx}_exp_row" ${!isMed?'style="display:none"':''}><label>Expiry Date</label>${inp('exp','MM/YYYY',v('expiry_date','N/A'))}</div>
+    <div class="fg" id="${pfx}_coldate_row" ${isMed?'style="display:none"':''}><label>Purchase/Collection Date</label><input type="date" id="${pfx}_coldate" value="${v('collection_date',today())}"></div>
+
+    <div class="fsec">📦 Product Details</div>
+    <div class="fg"><label>Unit Quantity <span class="req">*</span></label>${inp('uqty','e.g. 100gm × 4',v('unit_quantity'))}</div>
+    <div class="fg"><label>Dosage Form</label>${sel('dosf',DOSAGE_FORMS,v('dosage_form','Churna'))}</div>
+    <div class="fg"><label>Order Number</label>${inp('ordnum','N/A if not applicable',v('order_number','N/A'))}</div>
+    <div class="fg"><label>Order Date</label>${inp('orddate','DD-MM-YYYY',v('order_date','N/A'))}</div>
+
+    <div class="fsec">🔬 Lab Assignment</div>
+    <div class="fg"><label>Inspector Suspicion <span class="req">*</span></label>${sel('susp',SUSPICION,v('inspector_suspicion','Normal'))}</div>
+    <div class="fg"><label>Target Laboratory <span class="req">*</span></label>${sel('lab',LABS,v('target_laboratory',LABS[0]))}</div>
+    <div class="fg"><label>Name Disclosed (33KA)</label>${inp('namedis','N/A if not disclosed',v('name_disclosed','N/A'))}</div>
+    <div class="fg full"><label>Sample Owner</label><textarea id="${pfx}_owner">${v('sample_owner')}</textarea></div>
+  </div>`;
+}
+
+function bindFormConditional(pfx){
+  const st=document.getElementById(`${pfx}_stype`);
+  if(!st) return;
+  const sn=document.getElementById(`${pfx}_sname`);
+  const mn=document.getElementById(`${pfx}_mname`);
+  if(sn&&mn) sn.addEventListener('input',()=>{mn.value=sn.value;});
+  function toggle(){
+    const isMed=st.value==='Medicine';
+    ['cat','batch','mfgdate','exp'].forEach(r=>{const el=document.getElementById(`${pfx}_${r}_row`);if(el)el.style.display=isMed?'':'none';});
+    ['lot','coldate'].forEach(r=>{const el=document.getElementById(`${pfx}_${r}_row`);if(el)el.style.display=isMed?'none':'';});
+  }
+  st.addEventListener('change',toggle);
+}
+
+function collectForm(pfx){
+  const fy=g(`${pfx}_fy`), dist=g(`${pfx}_dist`);
+  const stype=g(`${pfx}_stype`), isMed=stype==='Medicine';
+  const sname=g(`${pfx}_sname`);
+  return {
+    financial_year:fy, district:dist, sample_name:sname, medicine_name:sname,
+    sample_type:stype, sample_category:isMed?g(`${pfx}_scat`):'',
+    enrolment_protocol:g(`${pfx}_ep`), inspector:g(`${pfx}_insp`)||S.user.name,
+    date_of_sampling:g(`${pfx}_dos`), collection_source:g(`${pfx}_csrc`),
+    collection_details:g(`${pfx}_cdet`), manufacturer_name:g(`${pfx}_mfgname`),
+    license_number:g(`${pfx}_lic`)||'N/A',
+    batch_number:isMed?g(`${pfx}_batch`):'', lot_number:!isMed?g(`${pfx}_lot`):'',
+    mfg_date:isMed?g(`${pfx}_mfgdate`):'', expiry_date:isMed?g(`${pfx}_exp`):'',
+    collection_date:!isMed?g(`${pfx}_coldate`):'',
+    unit_quantity:g(`${pfx}_uqty`), dosage_form:g(`${pfx}_dosf`),
+    order_number:g(`${pfx}_ordnum`)||'N/A', order_date:g(`${pfx}_orddate`)||'N/A',
+    inspector_suspicion:g(`${pfx}_susp`), target_laboratory:g(`${pfx}_lab`),
+    name_disclosed:g(`${pfx}_namedis`)||'N/A', sample_owner:g(`${pfx}_owner`),
+  };
+}
+
+// ── MODALS ────────────────────────────────────────────────────────────────────
+function renderModal(){
+  if(S.modal==='action')    return renderActionModal();
+  if(S.modal==='edit')      return renderEditModal();
+  if(S.modal==='report')    return renderReportModal();
+  if(S.modal==='view')      return renderViewModal();
+  if(S.modal==='changepwd') return renderChangePwdModal();
+  if(S.modal==='editprofile') return renderEditProfileModal();
+  return '';
+}
+
+function renderActionModal(){
+  const s=S.activeSample;
+  const canReport=s.workflow_status==='Sent';
+  return `<div class="overlay" id="ov"><div class="modal" style="max-width:500px;">
+    <div class="mhdr"><div><h3>${s.sample_name}</h3><p>${s.regulatory_serial} · ${s.date_of_sampling} · ${s.district}</p></div><button class="mclose" id="mcl">×</button></div>
+    <div style="padding:8px 16px 10px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span class="type-pill ${s.sample_type==='Raw Drug'?'tp-raw':'tp-med'}">${s.sample_type==='Raw Drug'?'🌿 Raw Drug':'💊 Medicine'}</span>
+      ${s.sample_category?`<span style="font-size:12px;color:var(--ink-soft);">${s.sample_category}</span>`:''}
+      ${statusBadge(s.workflow_status)} ${findingBadge(s.analytical_finding)}
+      <span style="font-size:12px;color:var(--ink-soft);">${s.sample_type==='Raw Drug'?'Lot: '+(s.lot_number||'—'):'Batch: '+(s.batch_number||'—')}</span>
+    </div>
+    <div class="action-btns">
+      <button class="action-btn-tile" id="go-edit"><div class="abt-icon">✏️</div><h4>Edit Sample Details</h4><p>Koi bhi field correct ya update karein</p></button>
+      <button class="action-btn-tile" id="go-report" ${!canReport?'style="opacity:.45;cursor:not-allowed;"':''}>
+        <div class="abt-icon">📋</div><h4>Enter Lab Report</h4>
+        <p>${canReport?'Lab se aayi result yahan enter karein':'Pehle sample Sent status mein hona chahiye'}</p>
+      </button>
+    </div>
+    <div style="padding:10px 16px;text-align:right;"><button class="btn btn-outline btn-sm" id="go-view">👁 View Full Details</button></div>
+  </div></div>`;
+}
+
+function renderEditModal(){
+  const s=S.activeSample;
+  return `<div class="overlay" id="ov"><div class="modal">
+    <div class="mhdr"><div><h3>Edit Sample Details</h3><p>${s.regulatory_serial}</p></div><button class="mclose" id="mcl">×</button></div>
+    <div class="mbody">${renderSampleForm('em',s)}</div>
+    <div class="mfoot"><button class="btn btn-outline" id="mcl2">Cancel</button><button class="btn btn-green" id="em-save">💾 Save Changes</button></div>
+  </div></div>`;
+}
+
+function renderReportModal(){
+  const s=S.activeSample;
+  return `<div class="overlay" id="ov"><div class="modal" style="max-width:460px;">
+    <div class="mhdr"><div><h3>Enter Lab Report</h3><p>${s.regulatory_serial} · ${s.sample_name}</p></div><button class="mclose" id="mcl">×</button></div>
+    <div class="mbody">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:11px;margin-bottom:14px;font-size:12.5px;">
+        <strong>Type:</strong> ${s.sample_type} ${s.sample_category?'· '+s.sample_category:''}<br>
+        <strong>${s.sample_type==='Raw Drug'?'Lot':'Batch'}:</strong> ${s.sample_type==='Raw Drug'?s.lot_number:s.batch_number}<br>
+        <strong>Manufacturer:</strong> ${s.manufacturer_name}<br>
+        <strong>Lab:</strong> ${shortLab(s.target_laboratory||'')}
+      </div>
+      <div class="fgrid">
+        <div class="fg"><label>Lab Date Received <span style="font-size:10px;color:var(--ink-soft);">(optional)</span></label><input type="date" id="rpt_recv" value=""></div>
+        <div class="fg"><label>Date Reported by Lab <span class="req">*</span></label><input type="date" id="rpt_date" value="${today()}"></div>
+        <div class="fg full"><label>Analytical Finding <span class="req">*</span></label>
+          <select id="rpt_finding">
+            <option value="">-- Select --</option>
+            <option>Standard Quality</option>
+            <option>Not of Standard Quality</option>
+          </select>
+        </div>
+      </div>
+      <div id="rpt_nsq_notice" style="display:none;margin-top:10px;padding:10px 12px;background:var(--red-l);border:1px solid #f5b7b1;border-radius:6px;font-size:12.5px;color:var(--red);">
+        ⚠️ <strong>Not of Standard Quality</strong> — Yeh sample NSQ list mein record hoga.
+      </div>
+    </div>
+    <div class="mfoot"><button class="btn btn-outline" id="mcl2">Cancel</button><button class="btn btn-green" id="rpt-save">✅ Save Report</button></div>
+  </div></div>`;
+}
+
+function renderViewModal(){
+  const s=S.activeSample;
+  const isMed=s.sample_type==='Medicine';
+  const fields=[
+    ['Regulatory Serial',s.regulatory_serial],['Financial Year',s.financial_year],
+    ['Drug / Sample Name',s.sample_name],
+  ];
+  if(isMed) fields.push(['Sample Category',s.sample_category]);
+  fields.push(['Sample Type',s.sample_type],['Enrolment Protocol',s.enrolment_protocol],
+    ['Inspector',s.inspector],['District',s.district],['Date of Sampling',s.date_of_sampling],
+    ['Collection Source',s.collection_source],['Collection Details',s.collection_details],
+    ['Manufacturer',s.manufacturer_name],['License No.',s.license_number]);
+  if(isMed) fields.push(['Batch Number',s.batch_number],['Mfg. Date',s.mfg_date],['Expiry Date',s.expiry_date]);
+  else fields.push(['Lot Number',s.lot_number],['Purchase/Collection Date',s.collection_date]);
+  fields.push(['Unit Quantity',s.unit_quantity],['Dosage Form',s.dosage_form],
+    ['Order No.',s.order_number],['Order Date',s.order_date],
+    ['Inspector Suspicion',s.inspector_suspicion],['Target Laboratory',s.target_laboratory],
+    ['Workflow Status',s.workflow_status],['Lab Date Received',s.lab_date_received],
+    ['Lab Date Reported',s.lab_date_reported],['Analytical Finding',s.analytical_finding],
+    ['Name Disclosed (33KA)',s.name_disclosed],['Sample Owner',s.sample_owner]);
+  return `<div class="overlay" id="ov"><div class="modal">
+    <div class="mhdr"><div><h3>${s.sample_name}</h3><p>${s.regulatory_serial}</p></div><button class="mclose" id="mcl">×</button></div>
+    <div class="mbody">
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+        <span class="type-pill ${isMed?'tp-med':'tp-raw'}">${isMed?'💊 Medicine':'🌿 Raw Drug'}</span>
+        ${statusBadge(s.workflow_status)} ${findingBadge(s.analytical_finding)}
+      </div>
+      <div class="detail-grid">${fields.map(([l,v])=>`<div class="di"><label>${l}</label><p>${v||'—'}</p></div>`).join('')}</div>
+    </div>
+    <div class="mfoot"><button class="btn btn-outline" id="mcl">Close</button></div>
+  </div></div>`;
+}
+
+function renderChangePwdModal(){
+  return `<div class="overlay" id="ov"><div class="modal" style="max-width:420px;">
+    <div class="mhdr"><div><h3>🔑 Change Password</h3><p>${S.user.username}</p></div><button class="mclose" id="mcl">×</button></div>
+    <div class="mbody">
+      <div class="fgrid">
+        <div class="fg full"><label>Current Password <span class="req">*</span></label><input type="password" id="cp_old" placeholder="Abhi ka password"></div>
+        <div class="fg full"><label>New Password <span class="req">*</span></label><input type="password" id="cp_new" placeholder="Naya password (min 6 characters)"></div>
+        <div class="fg full"><label>Confirm New Password <span class="req">*</span></label><input type="password" id="cp_conf" placeholder="Naya password dobara likhein"></div>
+      </div>
+      <div id="cp_err" style="display:none;margin-top:10px;padding:9px 12px;background:var(--red-l);color:var(--red);border-radius:6px;font-size:13px;"></div>
+    </div>
+    <div class="mfoot"><button class="btn btn-outline" id="mcl2">Cancel</button><button class="btn btn-green" id="cp_save">🔑 Update Password</button></div>
+  </div></div>`;
+}
+
+function renderEditProfileModal(){
+  const u=S.user;
+  const distOpts=u.role==='adc'||u.role==='admin'
+    ?`<option value="All" selected>All Districts</option>`
+    :DISTRICTS.map(d=>`<option value="${d}" ${u.district===d?'selected':''}>${d}</option>`).join('');
+  return `<div class="overlay" id="ov"><div class="modal" style="max-width:460px;">
+    <div class="mhdr"><div><h3>👤 Edit Profile</h3><p>@${u.username} — purane samples unchanged rahenge</p></div><button class="mclose" id="mcl">×</button></div>
+    <div class="mbody">
+      <div style="background:var(--sky-l);border:1px solid #a9d0ec;color:var(--sky);border-radius:6px;padding:10px 13px;margin-bottom:14px;font-size:12.5px;">
+        ℹ️ Naam badlne se <strong>purane samples ka inspector naam nahi badlega</strong> — wo original DI ka naam preserve rehega.
+      </div>
+      <div class="fgrid">
+        <div class="fg full"><label>Full Name <span class="req">*</span></label><input type="text" id="ep_name" value="${u.name}" placeholder="Dr. / Vd. full name"></div>
+        <div class="fg full"><label>Username</label><input type="text" value="${u.username}" readonly style="background:#f4f7fb;color:var(--ink-soft);"></div>
+        ${u.role==='di'?`<div class="fg full"><label>District <span class="req">*</span></label>
+          <select id="ep_dist">${distOpts}</select>
+          <small style="color:var(--ink-soft);font-size:11px;margin-top:3px;">⚠️ District change karne par sirf us district ke samples dikhenge</small>
+        </div>`:`<div class="fg full"><label>District</label><input type="text" value="All Districts" readonly style="background:#f4f7fb;"></div>`}
+      </div>
+    </div>
+    <div class="mfoot"><button class="btn btn-outline" id="mcl2">Cancel</button><button class="btn btn-green" id="ep_save">💾 Save Profile</button></div>
+  </div></div>`;
+}
+
+// ── PUBLIC VIEW ───────────────────────────────────────────────────────────────
+function renderPublic(){
+  const reported=S.samples.filter(x=>x.workflow_status==='Reported'||x.analytical_finding==='Standard Quality'||x.analytical_finding==='Not of Standard Quality');
+  let list=[...reported];
+  if(S.fFY)   list=list.filter(x=>x.financial_year===S.fFY);
+  if(S.fSearch){const q=S.fSearch.toLowerCase();list=list.filter(x=>(x.sample_name||'').toLowerCase().includes(q)||(x.regulatory_serial||'').toLowerCase().includes(q)||(x.manufacturer_name||'').toLowerCase().includes(q));}
+  if(S.fTab==='sq')  list=list.filter(x=>x.analytical_finding==='Standard Quality');
+  if(S.fTab==='nsq') list=list.filter(x=>x.analytical_finding==='Not of Standard Quality');
+  const sq=list.filter(x=>x.analytical_finding==='Standard Quality').length;
+  const nsq=list.filter(x=>x.analytical_finding==='Not of Standard Quality').length;
+  return `<div style="min-height:100vh;background:var(--bg);">
+    <div style="background:linear-gradient(135deg,var(--green),#2a7a4f);color:#fff;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 14px rgba(0,0,0,.2);">
+      <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:20px;">🧪</span><div><div style="font-size:15px;font-weight:700;">Drug Testing Reports — Public Registry</div><div style="font-size:10px;opacity:.7;">Uttarakhand AYUSH Drug Control Section</div></div></div>
+      <button id="pub-login-btn" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">🔐 Login</button>
+    </div>
+    <div style="padding:20px 24px;">
+      <div style="background:#e8f3fb;border:1px solid #a9d0ec;color:#1e6fa8;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:13px;">
+        ℹ️ Yeh page <strong>public</strong> hai — login ki zaroorat nahi. Uttarakhand ke sabhi drug samples ki testing reports yahan available hain.
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px;">
+        <div class="stat total"><div class="stat-label">Reported Samples</div><div class="stat-val">${list.length}</div></div>
+        <div class="stat sq"><div class="stat-label">Standard Quality</div><div class="stat-val">${sq}</div></div>
+        <div class="stat nsq"><div class="stat-label">Not Std. Quality</div><div class="stat-val">${nsq}</div></div>
+      </div>
+      <div class="card" style="padding:0;">
+        <div class="tabs">
+          <div class="tab ${S.fTab==='all'?'active':''}" data-tab="all">All Reported</div>
+          <div class="tab ${S.fTab==='sq'?'active':''}" data-tab="sq">✅ Standard Quality</div>
+          <div class="tab ${S.fTab==='nsq'?'active':''}" data-tab="nsq">❌ Not of Standard Quality</div>
+        </div>
+        <div class="fbar">
+          <input type="text" id="fsrch" placeholder="🔍 Search drug name, serial, manufacturer..." value="${S.fSearch}" style="flex:1;">
+          <select id="ffy"><option value="">All FY</option>${FYS.map(y=>`<option value="${y}" ${S.fFY===y?'selected':''}>${y}</option>`).join('')}</select>
+          <button class="btn btn-outline btn-sm" id="fclr">Clear</button>
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Serial No.</th><th>Drug</th><th>Type</th><th>Manufacturer</th><th>Batch/Lot</th><th>District</th><th>Date Sampled</th><th>Date Reported</th><th>Lab</th><th>Result</th></tr></thead>
+          <tbody>${list.length===0
+            ?'<tr><td colspan="10"><div class="empty"><span class="eicon">🔬</span>No reported samples found</div></td></tr>'
+            :list.map(x=>`<tr>
+              <td class="serial nowrap">${x.regulatory_serial||''}</td>
+              <td><strong>${x.sample_name||''}</strong><br><span style="font-size:11px;color:var(--ink-soft)">${x.dosage_form||''} · ${x.financial_year||''}</span></td>
+              <td><span class="type-pill ${x.sample_type==='Raw Drug'?'tp-raw':'tp-med'}">${x.sample_type==='Raw Drug'?'🌿 Raw':'💊 Med'}</span></td>
+              <td class="wrap" style="font-size:11.5px;">${x.manufacturer_name||'—'}</td>
+              <td style="font-family:monospace;font-size:11.5px;">${x.sample_type==='Raw Drug'?(x.lot_number||'—'):(x.batch_number||'—')}</td>
+              <td class="nowrap">${x.district==='All'?'State Level':x.district||''}</td>
+              <td class="nowrap">${x.date_of_sampling||'—'}</td>
+              <td class="nowrap">${x.lab_date_reported||'—'}</td>
+              <td style="font-size:10.5px;">${shortLab(x.target_laboratory||'')}</td>
+              <td>${findingBadge(x.analytical_finding)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── CSV DOWNLOAD ──────────────────────────────────────────────────────────────
+function downloadCSV(){
+  const list=filteredSamples();
+  const HEADERS=['Regulatory Serial','Financial Year','Drug/Sample Name','Sample Type',
+    'Sample Category','Enrolment Protocol','Inspector','District','Date of Sampling',
+    'Collection Source','Collection Details','Manufacturer Name','License Number',
+    'Batch Number','Lot Number','Mfg. Date','Expiry Date','Purchase/Collection Date',
+    'Unit Quantity','Dosage Form','Order Number','Order Date','Inspector Suspicion',
+    'Target Laboratory','Workflow Status','Lab Date Received','Lab Date Reported',
+    'Analytical Finding','Name Disclosed 33KA','Sample Owner'];
+  const FIELDS=['regulatory_serial','financial_year','sample_name','sample_type',
+    'sample_category','enrolment_protocol','inspector','district','date_of_sampling',
+    'collection_source','collection_details','manufacturer_name','license_number',
+    'batch_number','lot_number','mfg_date','expiry_date','collection_date',
+    'unit_quantity','dosage_form','order_number','order_date','inspector_suspicion',
+    'target_laboratory','workflow_status','lab_date_received','lab_date_reported',
+    'analytical_finding','name_disclosed','sample_owner'];
+  const esc=v=>{const s=String(v==null?'':v).replace(/"/g,'""');return (s.includes(',')||s.includes('"')||s.includes('\n'))?`"${s}"`:s;};
+  const rows=[HEADERS.map(esc).join(',')];
+  list.forEach(x=>rows.push(FIELDS.map(f=>esc(x[f]||'')).join(',')));
+  const blob=new Blob(['\uFEFF'+rows.join('\n')],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;
+  const ts=new Date().toISOString().slice(0,10).replace(/-/g,'');
+  const tab={all:'All',sent:'Sent',reported:'Reported',sq:'SQ',nsq:'NSQ'}[S.fTab]||'All';
+  a.download=`DrugSamples_${tab}_${ts}.csv`;a.click();URL.revokeObjectURL(url);
+}
+
+// ── BIND ALL ──────────────────────────────────────────────────────────────────
+function bindAll(){
+  // Logout
+  const lo=document.getElementById('logout');
+  if(lo) lo.onclick=()=>{S.user=null;S.page='dashboard';S.samples=[];S.samplesLoaded=false;render();};
+  // User menu
+  const umBtn=document.getElementById('usermenu-btn');
+  const umDrop=document.getElementById('usermenu-drop');
+  if(umBtn&&umDrop){
+    umBtn.onclick=e=>{e.stopPropagation();umDrop.style.display=umDrop.style.display==='none'?'block':'none';};
+    document.addEventListener('click',()=>{if(umDrop)umDrop.style.display='none';});
+  }
+  // Nav
+  document.querySelectorAll('[data-pg]').forEach(el=>el.onclick=()=>{S.page=el.dataset.pg;render();});
+  document.querySelectorAll('[data-act="new"]').forEach(el=>el.onclick=()=>{S.page='new';render();});
+  // Tabs
+  document.querySelectorAll('[data-tab]').forEach(el=>el.onclick=()=>{S.fTab=el.dataset.tab;render();});
+  // Filters
+  const fs=document.getElementById('fsrch');if(fs)fs.oninput=e=>{S.fSearch=e.target.value;render();};
+  const fdi=document.getElementById('fdi');if(fdi)fdi.onchange=e=>{S.fDI=e.target.value;render();};
+  const ff=document.getElementById('ffy');if(ff)ff.onchange=e=>{S.fFY=e.target.value;render();};
+  const fc=document.getElementById('fclr');if(fc)fc.onclick=()=>{S.fSearch='';S.fDI='';S.fFY='';S.fTab='all';render();};
+  // Sort
+  document.querySelectorAll('th[data-sort]').forEach(th=>{
+    th.onclick=()=>{const col=th.dataset.sort;S.sortCol===col?S.sortDir*=-1:(S.sortCol=col,S.sortDir=-1);render();};
+  });
+  // CSV
+  const csvBtn=document.getElementById('btn-csv');if(csvBtn)csvBtn.onclick=downloadCSV;
+  // Alert
+  const ac=document.getElementById('acl');if(ac){ac.onclick=()=>{S.alert=null;render();};setTimeout(()=>{if(S.alert){S.alert=null;render();}},4000);}
+  // Dashboard rows
+  document.querySelectorAll('tr.sr').forEach(row=>row.onclick=e=>{
+    if(e.target.tagName==='BUTTON') return;
+    const s=S.samples.find(x=>x.id===row.dataset.id);
+    if(s){S.activeSample=s;S.modal=canManage(s)?'action':'view';render();}
+  });
+  // Table buttons
+  document.querySelectorAll('.action-open').forEach(btn=>btn.onclick=()=>{S.activeSample=S.samples.find(x=>x.id===btn.dataset.id);S.modal='action';render();});
+  document.querySelectorAll('.view-btn').forEach(btn=>btn.onclick=()=>{S.activeSample=S.samples.find(x=>x.id===btn.dataset.id);S.modal='view';render();});
+  // Modal close
+  const cm=()=>{S.modal=null;S.activeSample=null;render();};
+  document.querySelectorAll('#mcl,#mcl2').forEach(b=>{if(b)b.onclick=cm;});
+  const ov=document.getElementById('ov');if(ov)ov.onclick=e=>{if(e.target===ov)cm();};
+  // Action choices
+  const ge=document.getElementById('go-edit');if(ge)ge.onclick=()=>{S.modal='edit';render();};
+  const gr=document.getElementById('go-report');if(gr)gr.onclick=()=>{if(S.activeSample.workflow_status==='Sent'){S.modal='report';render();}};
+  const gv=document.getElementById('go-view');if(gv)gv.onclick=()=>{S.modal='view';render();};
+  // Form conditionals
+  bindFormConditional('np');bindFormConditional('em');
+  // Profile buttons
+  const epbtn=document.getElementById('btn-editprofile');if(epbtn)epbtn.onclick=()=>{S.modal='editprofile';render();};
+  const cpbtn=document.getElementById('btn-changepwd');if(cpbtn)cpbtn.onclick=()=>{S.modal='changepwd';render();};
+  // New page save
+  const npSend=document.getElementById('np-send');
+  if(npSend)npSend.onclick=saveNewSample;
+  const npCancel=document.getElementById('np-cancel');
+  if(npCancel)npCancel.onclick=()=>{S.page='samples';render();};
+  // Edit save
+  const emSave=document.getElementById('em-save');if(emSave)emSave.onclick=saveEditSample;
+  // Report
+  const rf=document.getElementById('rpt_finding');if(rf)rf.onchange=()=>{const n=document.getElementById('rpt_nsq_notice');if(n)n.style.display=rf.value==='Not of Standard Quality'?'block':'none';};
+  const rptSave=document.getElementById('rpt-save');if(rptSave)rptSave.onclick=saveReport;
+  // Password change
+  const cpSave=document.getElementById('cp_save');if(cpSave)cpSave.onclick=savePassword;
+  // Profile save
+  const epSave=document.getElementById('ep_save');if(epSave)epSave.onclick=saveProfile;
+}
+
+function bindPublic(){
+  const lb=document.getElementById('pub-login-btn');if(lb)lb.onclick=()=>{S.page='dashboard';render();};
+  document.querySelectorAll('[data-tab]').forEach(el=>el.onclick=()=>{S.fTab=el.dataset.tab;render();});
+  const fs=document.getElementById('fsrch');if(fs)fs.oninput=e=>{S.fSearch=e.target.value;render();};
+  const ff=document.getElementById('ffy');if(ff)ff.onchange=e=>{S.fFY=e.target.value;render();};
+  const fc=document.getElementById('fclr');if(fc)fc.onclick=()=>{S.fSearch='';S.fFY='';S.fTab='all';render();};
+}
+
+// ── SAVE ACTIONS (Supabase) ───────────────────────────────────────────────────
+async function saveNewSample(){
+  const d=collectForm('np');
+  if(!d.sample_name){S.alert={type:'err',msg:'Sample Name zaroori hai.'};render();return;}
+  if(d.sample_type==='Medicine'&&!d.batch_number){S.alert={type:'err',msg:'Medicine ke liye Batch Number zaroori hai.'};render();return;}
+  loader(true);
+  try{
+    const serial=genSerial(d.district,d.financial_year,S.user.role);
+    const newRow={id:'s_'+Date.now(), regulatory_serial:serial,
+      workflow_status:'Sent', lab_date_received:'', lab_date_reported:'N/A',
+      analytical_finding:'Pending', ...d};
+    await sbInsert('samples', newRow);
+    S.samples.unshift(newRow);
+    S.alert={type:'ok',msg:`✅ Sample "${d.sample_name}" saved. Serial: ${serial}`};
+    S.page='samples';
+  }catch(e){S.alert={type:'err',msg:'Save failed: '+e.message};}
+  loader(false);render();
+}
+
+async function saveEditSample(){
+  const d=collectForm('em');
+  if(!d.sample_name){S.alert={type:'err',msg:'Sample Name zaroori hai.'};render();return;}
+  loader(true);
+  try{
+    await sbUpdate('samples',`id=eq.${S.activeSample.id}`,d);
+    S.samples=S.samples.map(x=>x.id===S.activeSample.id?{...x,...d}:x);
+    S.modal=null;S.activeSample=null;
+    S.alert={type:'ok',msg:'✅ Sample details save ho gaye.'};
+  }catch(e){S.alert={type:'err',msg:'Update failed: '+e.message};}
+  loader(false);render();
+}
+
+async function saveReport(){
+  const recv=g('rpt_recv'), date=g('rpt_date'), finding=g('rpt_finding');
+  if(!date||!finding){S.alert={type:'err',msg:'Date aur Finding dono required hain.'};render();return;}
+  loader(true);
+  try{
+    const upd={workflow_status:'Reported',lab_date_received:recv||'',lab_date_reported:date,analytical_finding:finding};
+    await sbUpdate('samples',`id=eq.${S.activeSample.id}`,upd);
+    S.samples=S.samples.map(x=>x.id===S.activeSample.id?{...x,...upd}:x);
+    const nm=S.activeSample.sample_name;S.modal=null;S.activeSample=null;
+    S.alert={type:'ok',msg:`✅ Report saved: "${nm}" → ${finding}`};
+  }catch(e){S.alert={type:'err',msg:'Save failed: '+e.message};}
+  loader(false);render();
+}
+
+async function savePassword(){
+  const oldp=g('cp_old'),newp=g('cp_new'),conf=g('cp_conf');
+  const errEl=document.getElementById('cp_err');
+  const showErr=msg=>{errEl.style.display='block';errEl.textContent=msg;};
+  errEl.style.display='none';
+  if(oldp!==S.user.password){showErr('Current password galat hai.');return;}
+  if(newp.length<6){showErr('New password kam se kam 6 characters ka hona chahiye.');return;}
+  if(newp!==conf){showErr('New password aur confirm password match nahi kar rahe.');return;}
+  loader(true);
+  try{
+    await sbUpdate('users',`id=eq.${S.user.id}`,{password:newp});
+    S.user={...S.user,password:newp};
+    S.modal=null;S.alert={type:'ok',msg:'✅ Password successfully change ho gaya.'};
+  }catch(e){S.alert={type:'err',msg:'Password update failed: '+e.message};}
+  loader(false);render();
+}
+
+async function saveProfile(){
+  const newName=(document.getElementById('ep_name')||{}).value||'';
+  const newDist=S.user.role==='di'?((document.getElementById('ep_dist')||{}).value||S.user.district):S.user.district;
+  if(!newName.trim()){S.alert={type:'err',msg:'Naam khali nahi ho sakta.'};render();return;}
+  loader(true);
+  try{
+    await sbUpdate('users',`id=eq.${S.user.id}`,{name:newName.trim(),district:newDist});
+    S.user={...S.user,name:newName.trim(),district:newDist};
+    S.modal=null;S.alert={type:'ok',msg:'✅ Profile update ho gaya. Purane samples unchanged hain.'};
+  }catch(e){S.alert={type:'err',msg:'Profile update failed: '+e.message};}
+  loader(false);render();
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+async function init(){
+  // Load reported samples for public view even before login
+  try{
+    const rows=await sbSelect('samples','select=*&order=date_of_sampling.desc,created_at.desc&limit=2000');
+    S.samples=rows||[];
+    S.samplesLoaded=true;
+  }catch(e){console.log('Init samples load:',e.message);}
+  loader(false);
+  render();
+}
+
+init();
+</script>
+</body>
+</html>
