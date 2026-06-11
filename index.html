@@ -246,9 +246,21 @@ function generatePassword(){
 // ── Constants ─────────────────────────────────────────────────────────────────
 const DISTRICTS=['Dehradun','Haridwar','Uttarkashi','Tehri','Pauri','Rudraprayag',
   'Chamoli','Bageshwar','Almora','Pithoragarh','Champawat','Nainital','Udham Singh Nagar'];
-const DIST_CODE={Dehradun:'DDN',Haridwar:'HDR',Uttarkashi:'UKI',Tehri:'THR',
-  Pauri:'PRG',Rudraprayag:'RPG',Chamoli:'CHL',Bageshwar:'BGS',
-  Almora:'ALM',Pithoragarh:'PTG',Champawat:'CPT',Nainital:'NTL','Udham Singh Nagar':'USN'};
+const DIST_CODE={
+  'Dehradun':'DDN',       // Dehradun
+  'Haridwar':'HDR',       // Haridwar
+  'Uttarkashi':'UKI',     // Uttarkashi
+  'Tehri':'THR',          // Tehri Garhwal
+  'Pauri':'PRG',          // Pauri Garhwal
+  'Rudraprayag':'RPG',    // Rudraprayag
+  'Chamoli':'CML',        // Chamoli
+  'Bageshwar':'BGS',      // Bageshwar
+  'Almora':'ALM',         // Almora
+  'Pithoragarh':'PTG',    // Pithoragarh
+  'Champawat':'CPT',      // Champawat
+  'Nainital':'NTL',       // Nainital
+  'Udham Singh Nagar':'USN' // Udham Singh Nagar
+};
 const DOSAGE_FORMS=['Syrup','Churna','Tablet','Capsule','Vati','Gutika','Avaleha',
   'Arista','Asava','Taila','Ghrita','Bhasma','Kwath Churna','Arka','Lepa Churna',
   'Rasayan','Khand','Arq','Powder','Other'];
@@ -313,10 +325,58 @@ function canManage(s){
   // DI: only own district
   return r==='di' && s.district===S.user.district;
 }
-function genSerial(district,fy,role){
-  const pfx=role==='adc'?'ADC-UK':`DI-${DIST_CODE[district]||'UK'}`;
-  const n=S.samples.filter(x=>x.regulatory_serial&&x.regulatory_serial.startsWith(pfx)&&x.financial_year===fy).length+1;
-  return `${pfx}-${String(n).padStart(4,'0')}/${fy}`;
+// Calculate current financial year from date
+function getCurrentFY(){
+  const now=new Date();
+  const y=now.getFullYear(), m=now.getMonth(); // 0=Jan
+  // FY starts April 1. If month < 3 (Jan/Feb/Mar) it's previous FY
+  const fyStart = m<3 ? y-1 : y;
+  const fyEnd = fyStart+1;
+  return `${fyStart}-${String(fyEnd).slice(-2)}`;
+}
+
+async function genSerialAsync(){
+  // Serial is based on the LOGGED-IN USER only — not collection district
+  // ADC → ADC-UK-XXXX/FY
+  // DI  → DI-{DISTCODE}-XXXX/FY  (based on their registered district)
+  const role = S.user.role;
+  const fy = getCurrentFY();
+  let pfx;
+  if(role === 'adc' || role === 'admin'){
+    pfx = 'ADC-UK';
+  } else {
+    // DI's own district code
+    const distCode = DIST_CODE[S.user.district] || 'UK';
+    pfx = `DI-${distCode}`;
+  }
+  try{
+    // Query Supabase for highest serial number with this prefix in this FY
+    const encoded = encodeURIComponent(pfx + '-');
+    const rows = await sbSelect('samples',
+      `regulatory_serial=like.${encoded}%25&financial_year=eq.${encodeURIComponent(fy)}&select=regulatory_serial&order=regulatory_serial.desc&limit=50`
+    );
+    let nextNum = 1;
+    if(rows && rows.length > 0){
+      // Find max number from matching serials
+      let maxNum = 0;
+      rows.forEach(r => {
+        const m = String(r.regulatory_serial).match(/-(\d{4})\//);
+        if(m){
+          const n = parseInt(m[1]);
+          if(n > maxNum) maxNum = n;
+        }
+      });
+      nextNum = maxNum + 1;
+    }
+    return `${pfx}-${String(nextNum).padStart(4,'0')}/${fy}`;
+  }catch(e){
+    console.warn('Serial gen fallback:', e.message);
+    // Fallback: count from loaded samples
+    const n = S.samples.filter(x =>
+      x.regulatory_serial && x.regulatory_serial.startsWith(pfx) && x.financial_year === fy
+    ).length + 1;
+    return `${pfx}-${String(n).padStart(4,'0')}/${fy}`;
+  }
 }
 
 function filteredSamples(){
@@ -783,25 +843,49 @@ function renderSampleForm(pfx,data){
   const disDef=S.user.role==='adc'||S.user.role==='admin'?v('district','Dehradun'):v('district',S.user.district);
   return `<div class="fgrid" id="${pfx}_grid">
     <div class="fsec">🏷️ Sample Identification</div>
-    <div class="fg"><label>Financial Year <span class="req">*</span></label>${sel('fy',FYS,v('financial_year','2026-27'))}</div>
+
+    <div class="fg">
+      <label>Serial Number</label>
+      <input type="text" id="${pfx}_serial" value="${v('regulatory_serial','')}"
+        readonly style="background:#f4f7fb;font-family:monospace;font-weight:700;color:var(--green);"
+        placeholder="${!data?'Will be auto-assigned...':''}">
+      ${!data?`<small style="color:var(--ink-soft);font-size:10.5px;">Auto-assigned · based on collection district &amp; financial year</small>`:''}
+    </div>
+
+    <div class="fg">
+      <label>Financial Year</label>
+      <input type="text" id="${pfx}_fy" value="${v('financial_year') || getCurrentFY()}"
+        readonly style="background:#f4f7fb;font-weight:600;color:var(--ink-mid);">
+      <small style="color:var(--ink-soft);font-size:10.5px;">Auto from current date (April–March cycle)</small>
+    </div>
+
     <div class="fg"><label>Sample / Drug Name <span class="req">*</span></label>
       <input type="text" id="${pfx}_sname" placeholder="Name as on label" value="${String(v('sample_name','')).replace(/"/g,'&quot;')}">
       <input type="hidden" id="${pfx}_mname" value="${String(v('sample_name','')).replace(/"/g,'&quot;')}">
     </div>
     <div class="fg"><label>Sample Type <span class="req">*</span></label>
-      <select id="${pfx}_stype"><option ${v('sample_type','Medicine')==='Medicine'?'selected':''}>Medicine</option><option ${v('sample_type')==='Raw Drug'?'selected':''}>Raw Drug</option></select>
+      <select id="${pfx}_stype">
+        <option ${v('sample_type','Medicine')==='Medicine'?'selected':''}>Medicine</option>
+        <option ${v('sample_type')==='Raw Drug'?'selected':''}>Raw Drug</option>
+      </select>
     </div>
-    <div class="fg" id="${pfx}_cat_row" ${!isMed?'style="display:none"':''}>
+    <div class="fg" id="${pfx}_cat_row" ${v('sample_type','Medicine')!=='Medicine'?'style="display:none"':''}>
       <label>Sample Category <span class="req">*</span></label>
-      <select id="${pfx}_scat"><option ${v('sample_category')==='Classical'?'selected':''}>Classical</option><option ${v('sample_category')==='Patent'?'selected':''}>Patent</option></select>
+      <select id="${pfx}_scat">
+        <option ${v('sample_category')==='Classical'?'selected':''}>Classical</option>
+        <option ${v('sample_category')==='Patent'?'selected':''}>Patent</option>
+      </select>
     </div>
     <div class="fg"><label>Enrolment Protocol <span class="req">*</span></label>
-      <select id="${pfx}_ep"><option ${v('enrolment_protocol')==='Legal'?'selected':''}>Legal</option><option ${v('enrolment_protocol')==='Survey'?'selected':''}>Survey</option></select>
+      <select id="${pfx}_ep">
+        <option ${v('enrolment_protocol')==='Legal'?'selected':''}>Legal</option>
+        <option ${v('enrolment_protocol')==='Survey'?'selected':''}>Survey</option>
+      </select>
     </div>
 
     <div class="fsec">🔍 Inspection Details</div>
     <div class="fg"><label>Inspector</label><input type="text" id="${pfx}_insp" value="${v('inspector',S.user.name)}" readonly></div>
-    <div class="fg"><label>District <span class="req">*</span></label>
+    <div class="fg"><label>Collection District <span class="req">*</span></label>
       <select id="${pfx}_dist">${DISTRICTS.map(d=>`<option ${d===disDef?'selected':''}>${d}</option>`).join('')}</select>
     </div>
     <div class="fg"><label>Date of Sampling <span class="req">*</span></label><input type="date" id="${pfx}_dos" value="${v('date_of_sampling',today())}"></div>
@@ -820,8 +904,12 @@ function renderSampleForm(pfx,data){
     <div class="fsec">📦 Product Details</div>
     <div class="fg"><label>Unit Quantity <span class="req">*</span></label>${inp('uqty','e.g. 100gm × 4',v('unit_quantity'))}</div>
     <div class="fg"><label>Dosage Form</label>${sel('dosf',DOSAGE_FORMS,v('dosage_form','Churna'))}</div>
-    <div class="fg"><label>Order Number</label>${inp('ordnum','N/A if not applicable',v('order_number','N/A'))}</div>
-    <div class="fg"><label>Order Date</label>${inp('orddate','DD-MM-YYYY',v('order_date','N/A'))}</div>
+    <div class="fg" id="${pfx}_ordnum_row" style="${v('collection_source')==='Govt Supply'?'':'display:none'}">
+      <label>Order Number</label>${inp('ordnum','Order/Supply number',v('order_number',''))}
+    </div>
+    <div class="fg" id="${pfx}_orddate_row" style="${v('collection_source')==='Govt Supply'?'':'display:none'}">
+      <label>Order Date</label><input type="date" id="${pfx}_orddate" value="${v('order_date','')}">
+    </div>
 
     <div class="fsec">🔬 Lab Assignment</div>
     <div class="fg"><label>Inspector Suspicion <span class="req">*</span></label>${sel('susp',SUSPICION,v('inspector_suspicion','Normal'))}</div>
@@ -834,23 +922,38 @@ function renderSampleForm(pfx,data){
 function bindFormConditional(pfx){
   const st=document.getElementById(`${pfx}_stype`);
   if(!st) return;
+  // Sample name sync
   const sn=document.getElementById(`${pfx}_sname`);
   const mn=document.getElementById(`${pfx}_mname`);
   if(sn&&mn) sn.addEventListener('input',()=>{mn.value=sn.value;});
-  function toggle(){
+  // Sample type → show/hide fields
+  function toggleType(){
     const isMed=st.value==='Medicine';
     ['cat','batch','mfgdate','exp'].forEach(r=>{const el=document.getElementById(`${pfx}_${r}_row`);if(el)el.style.display=isMed?'':'none';});
     ['lot','coldate'].forEach(r=>{const el=document.getElementById(`${pfx}_${r}_row`);if(el)el.style.display=isMed?'none':'';});
   }
-  st.addEventListener('change',toggle);
+  st.addEventListener('change',toggleType);
+  // Collection source → show Order No/Date only for Govt Supply
+  const csrc=document.getElementById(`${pfx}_csrc`);
+  function toggleOrder(){
+    const isGovt=csrc&&csrc.value==='Govt Supply';
+    ['ordnum','orddate'].forEach(r=>{
+      const el=document.getElementById(`${pfx}_${r}_row`);
+      if(el) el.style.display=isGovt?'':'none';
+    });
+  }
+  if(csrc){csrc.addEventListener('change',toggleOrder);toggleOrder();}
+  // Serial is fixed per logged-in user — no listener needed
 }
 
+
 function collectForm(pfx){
-  const fy=g(`${pfx}_fy`), dist=g(`${pfx}_dist`);
+  const fy=g(`${pfx}_fy`)||getCurrentFY(), dist=g(`${pfx}_dist`);
   const stype=g(`${pfx}_stype`), isMed=stype==='Medicine';
   const sname=g(`${pfx}_sname`);
+  const serial=g(`${pfx}_serial`);
   return {
-    financial_year:fy, district:dist, sample_name:sname, medicine_name:sname,
+    regulatory_serial:serial, financial_year:fy, district:dist, sample_name:sname, medicine_name:sname,
     sample_type:stype, sample_category:isMed?g(`${pfx}_scat`):'',
     enrolment_protocol:g(`${pfx}_ep`), inspector:g(`${pfx}_insp`)||S.user.name,
     date_of_sampling:g(`${pfx}_dos`), collection_source:g(`${pfx}_csrc`),
@@ -1331,6 +1434,17 @@ function bindAll(){
   const gv=document.getElementById('go-view');if(gv)gv.onclick=()=>{S.modal='view';render();};
   // Form conditionals
   bindFormConditional('np');bindFormConditional('em');
+  // Auto-generate serial for new entry — based on logged-in user only
+  if(S.page==='new'){
+    const serialEl=document.getElementById('np_serial');
+    if(serialEl&&!serialEl.value){
+      serialEl.value='Generating...';
+      genSerialAsync().then(s=>{ serialEl.value=s; });
+    }
+  }
+  // Mark edit serial as locked
+  const emSerial=document.getElementById('em_serial');
+  if(emSerial&&emSerial.value) emSerial.dataset.locked='1';
   // Profile buttons
   const epbtn=document.getElementById('btn-editprofile');if(epbtn)epbtn.onclick=()=>{S.modal='editprofile';render();};
   const cpbtn=document.getElementById('btn-changepwd');if(cpbtn)cpbtn.onclick=()=>{S.modal='changepwd';render();};
@@ -1591,7 +1705,8 @@ async function saveNewSample(){
   if(d.sample_type==='Medicine'&&!d.batch_number){S.alert={type:'err',msg:'Batch Number is required for Medicine type.'};render();return;}
   loader(true);
   try{
-    const serial=genSerial(d.district,d.financial_year,S.user.role);
+    // Use serial from form (already generated) or generate now
+    const serial = d.regulatory_serial || await genSerialAsync();
     const newRow={id:'s_'+Date.now(), regulatory_serial:serial,
       workflow_status:'Sent', lab_date_received:'', lab_date_reported:'N/A',
       analytical_finding:'Pending', ...d};
