@@ -60,6 +60,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .btn-outline{background:var(--bg);color:var(--ink-mid);border:1px solid var(--border);}
 .btn-outline:hover{background:var(--border);}
 .btn-sm{padding:5px 10px;font-size:12px;}
+.btn-danger{background:var(--red);color:#fff;}
+.btn-danger:hover{filter:brightness(1.1);}
+.btn-sky{background:var(--sky);color:#fff;}
+.btn-sky:hover{filter:brightness(1.1);}
 .tbl-wrap{overflow-x:auto;border-radius:var(--r);}
 table{width:100%;border-collapse:collapse;font-size:12.5px;}
 table th{background:var(--ink);color:#fff;padding:9px 11px;text-align:left;font-size:11px;font-weight:700;letter-spacing:.03em;white-space:nowrap;}
@@ -195,6 +199,50 @@ async function sbUpdate(table, match, data) {
   });
 }
 
+// ── Email config (Resend) ────────────────────────────────────────────────────
+// Set your Resend API key here after signup at resend.com (free: 3000 emails/month)
+const RESEND_KEY = 're_QDUvrPWW_M3g4Hv722yjhieem3iLXVUQj';
+const FROM_EMAIL = 'Drug Portal <noreply@uttarakhandayurved.co.in>';
+
+async function sendPasswordEmail(toEmail, username, newPassword){
+  if(!RESEND_KEY || RESEND_KEY === 'YOUR_RESEND_API_KEY'){
+    console.warn('Resend API key not configured');
+    return false;
+  }
+  try{
+    const res = await fetch('https://api.resend.com/emails',{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${RESEND_KEY}`,'Content-Type':'application/json'},
+      body: JSON.stringify({
+        from: FROM_EMAIL,
+        to: [toEmail],
+        subject: 'Drug Portal — Password Reset',
+        html: `<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #e0e0e0;border-radius:8px;">
+          <h2 style="color:#1d5c3a;">🧪 Drug Sample Registry</h2>
+          <p style="color:#3d4a5c;">Uttarakhand AYUSH Drug Control Section</p>
+          <hr style="border:none;border-top:1px solid #e0e0e0;margin:16px 0;">
+          <p>Dear <strong>${username}</strong>,</p>
+          <p>Your password has been reset. Use the following temporary password to login:</p>
+          <div style="background:#f4f7fb;border:1px solid #d0d9e4;border-radius:6px;padding:14px;margin:16px 0;text-align:center;">
+            <span style="font-size:22px;font-weight:800;font-family:monospace;letter-spacing:3px;color:#1d5c3a;">${newPassword}</span>
+          </div>
+          <p style="color:#c0392b;font-size:13px;">⚠️ Please change this password immediately after logging in.</p>
+          <hr style="border:none;border-top:1px solid #e0e0e0;margin:16px 0;">
+          <p style="font-size:11px;color:#6b7a8d;">Drug Portal · Uttarakhand AYUSH · <a href="mailto:drugportal@uttarakhandayurved.co.in">drugportal@uttarakhandayurved.co.in</a></p>
+        </div>`
+      })
+    });
+    return res.ok;
+  }catch(e){console.error('Email send failed:',e);return false;}
+}
+
+function generatePassword(){
+  const chars='ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$';
+  let pwd='';
+  for(let i=0;i<10;i++) pwd+=chars[Math.floor(Math.random()*chars.length)];
+  return pwd;
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 const DISTRICTS=['Dehradun','Haridwar','Uttarkashi','Tehri','Pauri','Rudraprayag',
   'Chamoli','Bageshwar','Almora','Pithoragarh','Champawat','Nainital','Udham Singh Nagar'];
@@ -216,23 +264,11 @@ const LABS=[
   'IMPCL Laboratory, Mohan (Almora)'
 ];
 const FYS=['2022-23','2023-24','2024-25','2025-26','2026-27'];
-const DI_FILTERS=[
-  {label:'All Entries',value:''},
-  {label:'DI — Udham Singh Nagar',value:'Udham Singh Nagar'},
-  {label:'DI — Tehri',value:'Tehri'},
-  {label:'DI — Pauri',value:'Pauri'},
-  {label:'DI — Nainital',value:'Nainital'},
-  {label:'DI — Almora',value:'Almora'},
-  {label:'DI — Pithoragarh',value:'Pithoragarh'},
-  {label:'DI — Champawat',value:'Champawat'},
-  {label:'DI — Haridwar',value:'Haridwar'},
-  {label:'DI — Uttarkashi',value:'Uttarkashi'},
-  {label:'DI — Rudraprayag',value:'Rudraprayag'},
-  {label:'DI — Chamoli',value:'Chamoli'},
-  {label:'DI — Bageshwar',value:'Bageshwar'},
-  {label:'DI — Dehradun',value:'Dehradun'},
-  {label:'ADC (State Level)',value:'All'},
-];
+// Inspector filter — built dynamically from loaded samples
+function getInspectorList(){
+  const names=new Set(S.samples.map(x=>x.inspector).filter(Boolean));
+  return ['', ...Array.from(names).sort()];
+}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let S = {
@@ -241,7 +277,7 @@ let S = {
   modal: null, activeSample: null,
   fSearch:'', fFY:'', fTab:'all', fDI:'',
   sortCol:'date_of_sampling', sortDir:-1,
-  alert: null, loginErr: null,
+  alert: null, loginErr: null, targetUser: null,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -271,7 +307,10 @@ function shortLab(l){
 }
 function canManage(s){
   const r=S.user.role;
-  if(r==='admin'||r==='adc') return true;
+  if(r==='admin') return true;
+  // ADC: sees all samples but can only manage entries they personally recorded
+  if(r==='adc') return s.inspector===S.user.name;
+  // DI: only own district
   return r==='di' && s.district===S.user.district;
 }
 function genSerial(district,fy,role){
@@ -284,7 +323,7 @@ function filteredSamples(){
   let s=[...S.samples];
   const r=S.user.role;
   if(r==='di') s=s.filter(x=>x.district===S.user.district);
-  if(S.fDI && (r==='adc'||r==='admin')) s=s.filter(x=>x.district===S.fDI);
+  if(S.fDI && (r==='adc'||r==='admin')) s=s.filter(x=>x.inspector===S.fDI);
   if(S.fFY) s=s.filter(x=>x.financial_year===S.fFY);
   if(S.fSearch){
     const q=S.fSearch.toLowerCase();
@@ -323,14 +362,22 @@ function renderLogin(){
   <div class="login-logo"><div class="icon">🧪</div><h1>Drug Sample Registry</h1><p>Uttarakhand AYUSH — Drug Control Section</p></div>
   ${S.loginErr?`<div class="login-err">⚠️ ${S.loginErr}</div>`:''}
   <div class="fg"><label>Username</label><input type="text" id="lu" placeholder="e.g. di.usnagar / adc"></div>
-  <div class="fg"><label>Password</label><input type="password" id="lp" placeholder="Password"></div>
+  <div class="fg">
+    <label>Password</label>
+    <input type="password" id="lp" placeholder="Password">
+    <div style="text-align:right;margin-top:4px;">
+      <button id="btn-forgotpwd" style="background:none;border:none;color:var(--green);font-size:12px;cursor:pointer;text-decoration:underline;padding:0;">Forgot Password?</button>
+    </div>
+  </div>
   <button class="btn btn-green" style="width:100%;margin-top:10px;padding:10px;" id="lbtn">Login →</button>
   <div style="margin-top:14px;padding:10px;background:#f4f7fb;border-radius:7px;font-size:11px;color:#6b7a8d;">
     <strong>Drug Inspector usernames:</strong><br>
     di.usnagar · di.tehri · di.pauri · di.nainital · di.almora<br>
     di.pithoragarh · di.champawat · di.haridwar · di.uttarkashi<br>
     di.rudraprayag · di.chamoli · di.bageshwar · di.dehradun<br>
-    <strong>ADC:</strong> adc &nbsp;|&nbsp; <strong>Admin:</strong> admin
+    <strong>ADC:</strong> adc &nbsp;|&nbsp; <strong>Admin:</strong> admin<br><br>
+    📧 For any issues contact:<br>
+    <a href="mailto:drugportal@uttarakhandayurved.co.in" style="color:var(--green);font-weight:600;">drugportal@uttarakhandayurved.co.in</a>
   </div>
   <div style="margin-top:10px;text-align:center;">
     <button id="btn-public" style="background:none;border:none;color:var(--green);font-size:13px;font-weight:600;cursor:pointer;text-decoration:underline;">🔍 Public Drug Testing Reports</button>
@@ -343,22 +390,28 @@ function bindLogin(){
   document.getElementById('lp').onkeydown=e=>{if(e.key==='Enter')doLogin();};
   const pb=document.getElementById('btn-public');
   if(pb) pb.onclick=()=>{S.page='public';render();};
+  const fp=document.getElementById('btn-forgotpwd');
+  if(fp) fp.onclick=()=>{S.modal='forgotpwd';render();};
 }
 
 async function doLogin(){
   const u=document.getElementById('lu').value.trim();
   const p=document.getElementById('lp').value;
-  if(!u||!p){S.loginErr='Username aur password dono bharo.';render();bindLogin();return;}
+  if(!u||!p){S.loginErr='Please enter username and password.';render();bindLogin();return;}
   loader(true);
   try{
     const rows=await sbSelect('users',`username=eq.${encodeURIComponent(u)}&select=*`);
-    if(!rows||rows.length===0){S.loginErr='Username nahi mila.';loader(false);render();bindLogin();return;}
+    if(!rows||rows.length===0){S.loginErr='Username not found.';loader(false);render();bindLogin();return;}
     const usr=rows[0];
     if(usr.password!==p){S.loginErr='Password galat hai.';loader(false);render();bindLogin();return;}
     S.user=usr;
     S.loginErr=null;
     await loadSamples();
     loader(false);
+    // First login check — prompt for email/mobile if not set
+    if(!usr.email || !usr.mobile){
+      S.modal='firstlogin';
+    }
     render();
   }catch(e){
     S.loginErr='Server error: '+e.message;
@@ -394,6 +447,8 @@ function renderHeader(){
             <div style="font-size:13px;font-weight:700;color:var(--green);">${S.user.name}</div>
             <div style="font-size:11px;color:var(--ink-soft);">${rl} · ${S.user.district==='All'?'All Districts':S.user.district}</div>
             <div style="font-size:10px;color:var(--ink-soft);margin-top:2px;">@${S.user.username}</div>
+            ${S.user.email?`<div style="font-size:10px;color:var(--ink-soft);margin-top:1px;">✉️ ${S.user.email}</div>`:''}
+            ${S.user.mobile?`<div style="font-size:10px;color:var(--ink-soft);margin-top:1px;">📱 ${S.user.mobile}</div>`:''}
           </div>
           <button class="usermenu-item" id="btn-editprofile">👤 Edit Profile</button>
           <button class="usermenu-item" id="btn-changepwd">🔑 Change Password</button>
@@ -414,6 +469,7 @@ function renderSidebar(){
   ];
   if(r!=='viewer') items.push({id:'new',icon:'➕',label:'New Sample Entry'});
   if(r==='adc'||r==='admin') items.push({id:'reports',icon:'📈',label:'Reports'});
+  if(r==='admin') items.push({id:'admin',icon:'⚙️',label:'Admin Panel'});
   return `<aside class="sidebar">
     <div class="sec-label">Menu</div>
     ${items.map(i=>`<div class="nav-item ${S.page===i.id?'active':''}" data-pg="${i.id}">${i.icon} ${i.label}</div>`).join('')}
@@ -431,8 +487,108 @@ function renderPage(){
   if(S.page==='samples')   return renderSamples();
   if(S.page==='new')       return renderNewPage();
   if(S.page==='reports')   return renderReports();
+  if(S.page==='admin')     return renderAdminPanel();
   return renderDash();
 }
+
+// ── ADMIN PANEL ───────────────────────────────────────────────────────────────
+function renderAdminPanel(){
+  return `
+  <div class="pg-title">
+    <div><h2>⚙️ Admin Panel</h2><p>Manage user accounts — add, reset password, delete</p></div>
+    <button class="btn btn-saffron" id="btn-add-user">➕ Add New User</button>
+  </div>
+  <div class="card" style="padding:0;">
+    <div id="admin-users-list">
+      <div class="loading" style="padding:30px;text-align:center;">
+        <div class="spinner" style="margin:0 auto 10px;"></div>
+        Loading users...
+      </div>
+    </div>
+  </div>
+  ${S.modal==='adduser'?renderAddUserModal():''}
+  ${S.modal==='resetpwd'?renderAdminResetPwdModal():''}
+  `;
+}
+
+function renderUserTable(users){
+  const roleLabel={di:'Drug Inspector',adc:'Asst. Drug Controller',admin:'Admin'};
+  return `<div class="tbl-wrap"><table>
+    <thead><tr>
+      <th>#</th><th>Username</th><th>Name</th><th>Role</th>
+      <th>District</th><th>Email</th><th>Mobile</th><th>Actions</th>
+    </tr></thead>
+    <tbody>
+    ${users.map((u,i)=>`<tr>
+      <td style="color:var(--ink-soft);font-size:12px;">${i+1}</td>
+      <td style="font-family:monospace;font-weight:700;color:var(--green);">${u.username}</td>
+      <td><strong>${u.name}</strong></td>
+      <td><span class="badge ${u.role==='admin'?'b-nsq':u.role==='adc'?'b-sent':'b-sq'}">${roleLabel[u.role]||u.role}</span></td>
+      <td class="nowrap">${u.district==='All'?'All Districts':u.district}</td>
+      <td style="font-size:12px;">${u.email||'<span style="color:#ccc;">Not set</span>'}</td>
+      <td style="font-size:12px;">${u.mobile||'<span style="color:#ccc;">Not set</span>'}</td>
+      <td class="nowrap">
+        ${u.username!=='admin'?`
+          <button class="btn btn-sky btn-sm admin-reset-pwd" data-id="${u.id}" data-username="${u.username}" data-name="${u.name}" style="margin-right:4px;">🔑 Reset</button>
+          <button class="btn btn-danger btn-sm admin-del-user" data-id="${u.id}" data-username="${u.username}" data-name="${u.name}">🗑 Delete</button>
+        `:'<span style="font-size:11px;color:var(--ink-soft);">Protected</span>'}
+      </td>
+    </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+function renderAddUserModal(){
+  return `<div class="overlay" id="ov" style="z-index:300;"><div class="modal" style="max-width:500px;">
+    <div class="mhdr"><div><h3>➕ Add New User</h3><p>Create a new staff account</p></div><button class="mclose" id="mcl">×</button></div>
+    <div class="mbody">
+      <div class="fgrid">
+        <div class="fg"><label>Full Name <span class="req">*</span></label><input type="text" id="au_name" placeholder="Dr. / Vd. full name"></div>
+        <div class="fg"><label>Username <span class="req">*</span></label><input type="text" id="au_username" placeholder="e.g. di.almora2"></div>
+        <div class="fg"><label>Password <span class="req">*</span></label><input type="password" id="au_password" placeholder="Min 6 characters"></div>
+        <div class="fg"><label>Role <span class="req">*</span></label>
+          <select id="au_role">
+            <option value="di">Drug Inspector</option>
+            <option value="adc">Asst. Drug Controller</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="fg"><label>District <span class="req">*</span></label>
+          <select id="au_district">
+            ${DISTRICTS.map(d=>`<option value="${d}">${d}</option>`).join('')}
+            <option value="All">All Districts</option>
+          </select>
+        </div>
+        <div class="fg"><label>Email</label><input type="email" id="au_email" placeholder="Official email (optional)"></div>
+        <div class="fg"><label>Mobile</label><input type="tel" id="au_mobile" placeholder="10-digit mobile" maxlength="10"></div>
+      </div>
+      <div id="au_err" style="display:none;margin-top:10px;padding:9px 12px;background:var(--red-l);color:var(--red);border-radius:6px;font-size:13px;"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-outline" id="mcl2">Cancel</button>
+      <button class="btn btn-green" id="au_save">✅ Create Account</button>
+    </div>
+  </div></div>`;
+}
+
+function renderAdminResetPwdModal(){
+  const u=S.targetUser||{};
+  return `<div class="overlay" id="ov" style="z-index:300;"><div class="modal" style="max-width:420px;">
+    <div class="mhdr"><div><h3>🔑 Reset Password</h3><p>${u.name} (@${u.username})</p></div><button class="mclose" id="mcl">×</button></div>
+    <div class="mbody">
+      <div class="fgrid">
+        <div class="fg full"><label>New Password <span class="req">*</span></label><input type="password" id="ar_newpwd" placeholder="New password (min 6 characters)"></div>
+        <div class="fg full"><label>Confirm Password <span class="req">*</span></label><input type="password" id="ar_confirmpwd" placeholder="Confirm new password"></div>
+      </div>
+      <div id="ar_err" style="display:none;margin-top:10px;padding:9px 12px;background:var(--red-l);color:var(--red);border-radius:6px;font-size:13px;"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-outline" id="mcl2">Cancel</button>
+      <button class="btn btn-green" id="ar_save">🔑 Reset Password</button>
+    </div>
+  </div></div>`;
+}
+
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 function renderDash(){
@@ -445,7 +601,7 @@ function renderDash(){
   const nsq=s.filter(x=>x.analytical_finding==='Not of Standard Quality').length;
   const pend=s.filter(x=>x.analytical_finding==='Pending').length;
   const recent=s.slice(0,8);
-  const dm={};DISTRICTS.forEach(d=>{dm[d]=s.filter(x=>x.district===d).length;});
+  // inspector map built inline in chart
   return `
   <div class="pg-title">
     <div><h2>Dashboard</h2><p>Drug Sampling Surveillance — Uttarakhand</p></div>
@@ -475,11 +631,24 @@ function renderDash(){
       </table></div>
     </div>
     <div class="card">
-      <div class="card-title">📍 District-wise</div>
-      ${DISTRICTS.map(d=>{const c=dm[d]||0,mx=Math.max(...Object.values(dm),1);
-        return `<div style="margin-bottom:7px;"><div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:2px;"><span>${d}</span><strong>${c}</strong></div>
-        <div style="background:var(--border);border-radius:3px;height:5px;"><div style="background:var(--green);width:${Math.round(c/mx*100)}%;height:100%;border-radius:3px;"></div></div></div>`;
-      }).join('')}
+      <div class="card-title">👤 Inspector-wise Samples</div>
+      ${(()=>{
+        const im={};
+        s.forEach(x=>{if(x.inspector) im[x.inspector]=(im[x.inspector]||0)+1;});
+        const sorted=Object.entries(im).sort((a,b)=>b[1]-a[1]);
+        const mx=sorted.length?sorted[0][1]:1;
+        if(!sorted.length) return '<div style="color:var(--ink-soft);font-size:12px;">No data</div>';
+        return sorted.map(([name,cnt])=>`
+          <div style="margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:2px;">
+              <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:75%;" title="${name}">${name}</span>
+              <strong>${cnt}</strong>
+            </div>
+            <div style="background:var(--border);border-radius:3px;height:6px;">
+              <div style="background:var(--green);width:${Math.round(cnt/mx*100)}%;height:100%;border-radius:3px;"></div>
+            </div>
+          </div>`).join('');
+      })()}
     </div>
   </div>`;
 }
@@ -513,8 +682,9 @@ function renderSamples(){
     </div>
     <div class="fbar">
       <input type="text" id="fsrch" placeholder="🔍 Search name, serial, batch..." value="${S.fSearch}" style="min-width:200px;flex:2;">
-      ${showDIFilter?`<select id="fdi" style="min-width:185px;">
-        ${DI_FILTERS.map(f=>`<option value="${f.value}" ${S.fDI===f.value?'selected':''}>${f.label}</option>`).join('')}
+      ${showDIFilter?`<select id="fdi" style="min-width:200px;">
+        <option value="">All Inspectors</option>
+        ${getInspectorList().filter(n=>n).map(n=>`<option value="${n}" ${S.fDI===n?'selected':''}>${n}</option>`).join('')}
       </select>`:''}
       <select id="ffy"><option value="">All FY</option>
         ${FYS.map(y=>`<option value="${y}" ${S.fFY===y?'selected':''}>${y}</option>`).join('')}
@@ -558,7 +728,7 @@ function renderSamples(){
 
 // ── NEW ENTRY ─────────────────────────────────────────────────────────────────
 function renderNewPage(){
-  return `<div class="pg-title"><div><h2>New Sample Entry</h2><p>Inspection ke dauran liye gaye drug sample ki entry</p></div></div>
+  return `<div class="pg-title"><div><h2>New Sample Entry</h2><p>Enter all details of the drug sample collected during inspection</p></div></div>
   <div class="card">${renderSampleForm('np',null)}
     <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:18px;border-top:1px solid var(--border);padding-top:14px;">
       <button class="btn btn-outline" id="np-cancel">Cancel</button>
@@ -696,6 +866,67 @@ function collectForm(pfx){
   };
 }
 
+// ── FIRST LOGIN MODAL ─────────────────────────────────────────────────────────
+function renderFirstLoginModal(){
+  return `<div class="overlay" id="ov" style="z-index:250;"><div class="modal" style="max-width:460px;">
+    <div class="mhdr">
+      <div><h3>👋 Welcome, ${S.user.name}</h3><p>Please complete your profile to continue</p></div>
+    </div>
+    <div class="mbody">
+      <div style="background:var(--sky-l);border:1px solid #a9d0ec;color:var(--sky);border-radius:6px;padding:10px 13px;margin-bottom:16px;font-size:13px;">
+        ℹ️ Your email and mobile number are required for account recovery and notifications. This is a one-time setup.
+      </div>
+      <div class="fgrid">
+        <div class="fg full">
+          <label>Email Address <span class="req">*</span></label>
+          <input type="email" id="fl_email" value="${S.user.email||''}" placeholder="e.g. di.usnagar@uttarakhand.gov.in">
+        </div>
+        <div class="fg full">
+          <label>Mobile Number <span class="req">*</span></label>
+          <input type="tel" id="fl_mobile" value="${S.user.mobile||''}" placeholder="10-digit mobile number" maxlength="10">
+        </div>
+        <div class="fg full">
+          <label>Change Password <span style="font-size:10px;color:var(--ink-soft);">(optional — leave blank to keep current)</span></label>
+          <input type="password" id="fl_newpwd" placeholder="New password (min 6 characters)">
+        </div>
+        <div class="fg full" id="fl_confirmpwd_row" style="display:none;">
+          <label>Confirm New Password</label>
+          <input type="password" id="fl_confirmpwd" placeholder="Confirm new password">
+        </div>
+      </div>
+      <div id="fl_err" style="display:none;margin-top:10px;padding:9px 12px;background:var(--red-l);color:var(--red);border-radius:6px;font-size:13px;"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-outline" id="fl_skip">Skip for now</button>
+      <button class="btn btn-green" id="fl_save">Save & Continue →</button>
+    </div>
+  </div></div>`;
+}
+
+// ── FORGOT PASSWORD MODAL ─────────────────────────────────────────────────────
+function renderForgotPwdModal(){
+  return `<div class="overlay" id="ov"><div class="modal" style="max-width:420px;">
+    <div class="mhdr">
+      <div><h3>🔑 Forgot Password</h3><p>Enter your registered email to receive a new password</p></div>
+      <button class="mclose" id="mcl">×</button>
+    </div>
+    <div class="mbody">
+      <div class="fgrid">
+        <div class="fg full">
+          <label>Registered Email Address <span class="req">*</span></label>
+          <input type="email" id="fp_email" placeholder="Your registered email address">
+        </div>
+      </div>
+      <div id="fp_msg" style="display:none;margin-top:12px;padding:10px 13px;border-radius:6px;font-size:13px;"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-outline" id="mcl2">Cancel</button>
+      <button class="btn btn-green" id="fp_send">📧 Send New Password</button>
+    </div>
+  </div></div>`;
+}
+
+
 // ── MODALS ────────────────────────────────────────────────────────────────────
 function renderModal(){
   if(S.modal==='action')    return renderActionModal();
@@ -704,6 +935,10 @@ function renderModal(){
   if(S.modal==='view')      return renderViewModal();
   if(S.modal==='changepwd') return renderChangePwdModal();
   if(S.modal==='editprofile') return renderEditProfileModal();
+  if(S.modal==='firstlogin') return renderFirstLoginModal();
+  if(S.modal==='forgotpwd')  return renderForgotPwdModal();
+  if(S.modal==='adduser')    return renderAddUserModal();
+  if(S.modal==='resetpwd')   return renderAdminResetPwdModal();
   return '';
 }
 
@@ -719,10 +954,10 @@ function renderActionModal(){
       <span style="font-size:12px;color:var(--ink-soft);">${s.sample_type==='Raw Drug'?'Lot: '+(s.lot_number||'—'):'Batch: '+(s.batch_number||'—')}</span>
     </div>
     <div class="action-btns">
-      <button class="action-btn-tile" id="go-edit"><div class="abt-icon">✏️</div><h4>Edit Sample Details</h4><p>Koi bhi field correct ya update karein</p></button>
+      <button class="action-btn-tile" id="go-edit"><div class="abt-icon">✏️</div><h4>Edit Sample Details</h4><p>Correct or update any field in this entry</p></button>
       <button class="action-btn-tile" id="go-report" ${!canReport?'style="opacity:.45;cursor:not-allowed;"':''}>
         <div class="abt-icon">📋</div><h4>Enter Lab Report</h4>
-        <p>${canReport?'Lab se aayi result yahan enter karein':'Pehle sample Sent status mein hona chahiye'}</p>
+        <p>${canReport?'Enter the analytical result received from laboratory':'Sample must be in Sent status to enter report'}</p>
       </button>
     </div>
     <div style="padding:10px 16px;text-align:right;"><button class="btn btn-outline btn-sm" id="go-view">👁 View Full Details</button></div>
@@ -761,7 +996,7 @@ function renderReportModal(){
         </div>
       </div>
       <div id="rpt_nsq_notice" style="display:none;margin-top:10px;padding:10px 12px;background:var(--red-l);border:1px solid #f5b7b1;border-radius:6px;font-size:12.5px;color:var(--red);">
-        ⚠️ <strong>Not of Standard Quality</strong> — Yeh sample NSQ list mein record hoga.
+        ⚠️ <strong>Not of Standard Quality</strong> — This sample will be flagged in the NSQ list.
       </div>
     </div>
     <div class="mfoot"><button class="btn btn-outline" id="mcl2">Cancel</button><button class="btn btn-green" id="rpt-save">✅ Save Report</button></div>
@@ -806,9 +1041,9 @@ function renderChangePwdModal(){
     <div class="mhdr"><div><h3>🔑 Change Password</h3><p>${S.user.username}</p></div><button class="mclose" id="mcl">×</button></div>
     <div class="mbody">
       <div class="fgrid">
-        <div class="fg full"><label>Current Password <span class="req">*</span></label><input type="password" id="cp_old" placeholder="Abhi ka password"></div>
-        <div class="fg full"><label>New Password <span class="req">*</span></label><input type="password" id="cp_new" placeholder="Naya password (min 6 characters)"></div>
-        <div class="fg full"><label>Confirm New Password <span class="req">*</span></label><input type="password" id="cp_conf" placeholder="Naya password dobara likhein"></div>
+        <div class="fg full"><label>Current Password <span class="req">*</span></label><input type="password" id="cp_old" placeholder="Current password"></div>
+        <div class="fg full"><label>New Password <span class="req">*</span></label><input type="password" id="cp_new" placeholder="New password (min 6 characters)"></div>
+        <div class="fg full"><label>Confirm New Password <span class="req">*</span></label><input type="password" id="cp_conf" placeholder="Confirm new password"></div>
       </div>
       <div id="cp_err" style="display:none;margin-top:10px;padding:9px 12px;background:var(--red-l);color:var(--red);border-radius:6px;font-size:13px;"></div>
     </div>
@@ -822,23 +1057,111 @@ function renderEditProfileModal(){
     ?`<option value="All" selected>All Districts</option>`
     :DISTRICTS.map(d=>`<option value="${d}" ${u.district===d?'selected':''}>${d}</option>`).join('');
   return `<div class="overlay" id="ov"><div class="modal" style="max-width:460px;">
-    <div class="mhdr"><div><h3>👤 Edit Profile</h3><p>@${u.username} — purane samples unchanged rahenge</p></div><button class="mclose" id="mcl">×</button></div>
+    <div class="mhdr"><div><h3>👤 Edit Profile</h3><p>@${u.username} — previous sample records will remain unchanged</p></div><button class="mclose" id="mcl">×</button></div>
     <div class="mbody">
       <div style="background:var(--sky-l);border:1px solid #a9d0ec;color:var(--sky);border-radius:6px;padding:10px 13px;margin-bottom:14px;font-size:12.5px;">
-        ℹ️ Naam badlne se <strong>purane samples ka inspector naam nahi badlega</strong> — wo original DI ka naam preserve rehega.
+        ℹ️ Changing your name will <strong>not affect previous sample records</strong> — the original inspector name will be preserved.
       </div>
       <div class="fgrid">
         <div class="fg full"><label>Full Name <span class="req">*</span></label><input type="text" id="ep_name" value="${u.name}" placeholder="Dr. / Vd. full name"></div>
         <div class="fg full"><label>Username</label><input type="text" value="${u.username}" readonly style="background:#f4f7fb;color:var(--ink-soft);"></div>
+        <div class="fg"><label>Email Address</label><input type="email" id="ep_email" value="${u.email||''}" placeholder="e.g. di.usnagar@uttarakhand.gov.in"></div>
+        <div class="fg"><label>Mobile Number</label><input type="tel" id="ep_mobile" value="${u.mobile||''}" placeholder="10-digit mobile number" maxlength="10"></div>
         ${u.role==='di'?`<div class="fg full"><label>District <span class="req">*</span></label>
           <select id="ep_dist">${distOpts}</select>
-          <small style="color:var(--ink-soft);font-size:11px;margin-top:3px;">⚠️ District change karne par sirf us district ke samples dikhenge</small>
+          <small style="color:var(--ink-soft);font-size:11px;margin-top:3px;">⚠️ Changing district will filter samples to that district only</small>
         </div>`:`<div class="fg full"><label>District</label><input type="text" value="All Districts" readonly style="background:#f4f7fb;"></div>`}
       </div>
     </div>
     <div class="mfoot"><button class="btn btn-outline" id="mcl2">Cancel</button><button class="btn btn-green" id="ep_save">💾 Save Profile</button></div>
   </div></div>`;
 }
+
+// ── INSPECTOR SUMMARY (Public) ────────────────────────────────────────────────
+function renderInspectorSummary(){
+  const all = S.samples.filter(x=>x.workflow_status==='Reported'||x.analytical_finding==='Standard Quality'||x.analytical_finding==='Not of Standard Quality');
+  // Get unique inspectors
+  const inspectors = [...new Set(all.map(x=>x.inspector).filter(Boolean))].sort();
+  if(inspectors.length===0) return '<div class="empty"><span class="eicon">👤</span>No data available</div>';
+
+  // Build data: inspector → FY → {total, sq, nsq}
+  const data={};
+  inspectors.forEach(insp=>{
+    data[insp]={};
+    FYS.forEach(fy=>{
+      const s=all.filter(x=>x.inspector===insp&&x.financial_year===fy);
+      if(s.length>0){
+        data[insp][fy]={
+          total:s.length,
+          sq:s.filter(x=>x.analytical_finding==='Standard Quality').length,
+          nsq:s.filter(x=>x.analytical_finding==='Not of Standard Quality').length,
+          pending:s.filter(x=>x.analytical_finding==='Pending'||!x.analytical_finding).length,
+        };
+      }
+    });
+  });
+
+  // FYs that have data
+  const activeFYs = FYS.filter(fy=>inspectors.some(insp=>data[insp][fy]));
+
+  return `<div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+      <thead>
+        <tr>
+          <th rowspan="2" style="background:var(--ink);color:#fff;padding:10px 12px;text-align:left;white-space:nowrap;vertical-align:middle;">Inspector Name</th>
+          ${activeFYs.map(fy=>`<th colspan="3" style="background:var(--ink);color:#fff;padding:8px 12px;text-align:center;border-left:2px solid rgba(255,255,255,.2);">${fy}</th>`).join('')}
+          <th colspan="3" style="background:#2a4a3a;color:#fff;padding:8px 12px;text-align:center;border-left:2px solid rgba(255,255,255,.2);">Overall Total</th>
+        </tr>
+        <tr>
+          ${activeFYs.map(()=>`
+            <th style="background:#2d3748;color:#fff;padding:6px 8px;text-align:center;font-size:10px;">Total</th>
+            <th style="background:#2d3748;color:#aed9c0;padding:6px 8px;text-align:center;font-size:10px;">SQ</th>
+            <th style="background:#2d3748;color:#f5b7b1;padding:6px 8px;text-align:center;font-size:10px;">NSQ</th>
+          `).join('')}
+          <th style="background:#2a4a3a;color:#fff;padding:6px 8px;text-align:center;font-size:10px;">Total</th>
+          <th style="background:#2a4a3a;color:#aed9c0;padding:6px 8px;text-align:center;font-size:10px;">SQ</th>
+          <th style="background:#2a4a3a;color:#f5b7b1;padding:6px 8px;text-align:center;font-size:10px;">NSQ</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${inspectors.map((insp,idx)=>{
+          const overallSamples=all.filter(x=>x.inspector===insp);
+          const overallTotal=overallSamples.length;
+          const overallSQ=overallSamples.filter(x=>x.analytical_finding==='Standard Quality').length;
+          const overallNSQ=overallSamples.filter(x=>x.analytical_finding==='Not of Standard Quality').length;
+          return `<tr style="background:${idx%2===0?'#fff':'#f8fafb'};">
+            <td style="padding:9px 12px;font-weight:600;white-space:nowrap;border-bottom:1px solid var(--border);">${insp}</td>
+            ${activeFYs.map(fy=>{
+              const d=data[insp][fy];
+              if(!d) return `<td style="padding:9px 8px;text-align:center;color:#ccc;border-bottom:1px solid var(--border);border-left:2px solid #f0f0f0;">—</td><td style="padding:9px 8px;text-align:center;color:#ccc;border-bottom:1px solid var(--border);">—</td><td style="padding:9px 8px;text-align:center;color:#ccc;border-bottom:1px solid var(--border);">—</td>`;
+              return `<td style="padding:9px 8px;text-align:center;font-weight:700;border-bottom:1px solid var(--border);border-left:2px solid #f0f0f0;">${d.total}</td>
+                <td style="padding:9px 8px;text-align:center;color:var(--green);font-weight:600;border-bottom:1px solid var(--border);">${d.sq||'—'}</td>
+                <td style="padding:9px 8px;text-align:center;color:var(--red);font-weight:600;border-bottom:1px solid var(--border);">${d.nsq||'—'}</td>`;
+            }).join('')}
+            <td style="padding:9px 8px;text-align:center;font-weight:800;background:#f0f4f0;border-bottom:1px solid var(--border);border-left:2px solid var(--green);">${overallTotal}</td>
+            <td style="padding:9px 8px;text-align:center;color:var(--green);font-weight:700;background:#f0f4f0;border-bottom:1px solid var(--border);">${overallSQ||'—'}</td>
+            <td style="padding:9px 8px;text-align:center;color:var(--red);font-weight:700;background:#f0f4f0;border-bottom:1px solid var(--border);">${overallNSQ||'—'}</td>
+          </tr>`;
+        }).join('')}
+        <!-- Total row -->
+        <tr style="background:#1d5c3a;">
+          <td style="padding:10px 12px;color:#fff;font-weight:800;">TOTAL</td>
+          ${activeFYs.map(fy=>{
+            const fyAll=all.filter(x=>x.financial_year===fy);
+            return `<td style="padding:10px 8px;text-align:center;color:#fff;font-weight:800;border-left:2px solid rgba(255,255,255,.2);">${fyAll.length}</td>
+              <td style="padding:10px 8px;text-align:center;color:#aed9c0;font-weight:700;">${fyAll.filter(x=>x.analytical_finding==='Standard Quality').length||'—'}</td>
+              <td style="padding:10px 8px;text-align:center;color:#f5b7b1;font-weight:700;">${fyAll.filter(x=>x.analytical_finding==='Not of Standard Quality').length||'—'}</td>`;
+          }).join('')}
+          <td style="padding:10px 8px;text-align:center;color:#fff;font-weight:800;border-left:2px solid rgba(255,255,255,.3);">${all.length}</td>
+          <td style="padding:10px 8px;text-align:center;color:#aed9c0;font-weight:700;">${all.filter(x=>x.analytical_finding==='Standard Quality').length||'—'}</td>
+          <td style="padding:10px 8px;text-align:center;color:#f5b7b1;font-weight:700;">${all.filter(x=>x.analytical_finding==='Not of Standard Quality').length||'—'}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="padding:10px 14px;font-size:11px;color:var(--ink-soft);">SQ = Standard Quality &nbsp;|&nbsp; NSQ = Not of Standard Quality &nbsp;|&nbsp; — = No samples in that year</div>
+  </div>`;
+}
+
 
 // ── PUBLIC VIEW ───────────────────────────────────────────────────────────────
 function renderPublic(){
@@ -853,11 +1176,38 @@ function renderPublic(){
   return `<div style="min-height:100vh;background:var(--bg);">
     <div style="background:linear-gradient(135deg,var(--green),#2a7a4f);color:#fff;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 14px rgba(0,0,0,.2);">
       <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:20px;">🧪</span><div><div style="font-size:15px;font-weight:700;">Drug Testing Reports — Public Registry</div><div style="font-size:10px;opacity:.7;">Uttarakhand AYUSH Drug Control Section</div></div></div>
-      <button id="pub-login-btn" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">🔐 Login</button>
+      <button id="pub-login-btn" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">🔐 Staff Login</button>
+      <!-- Login Modal (inline for public page) -->
+      <div id="pub-login-modal" style="display:none;position:fixed;inset:0;background:rgba(10,20,40,.55);z-index:400;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:12px;width:100%;max-width:380px;margin:20px;box-shadow:0 8px 40px rgba(0,0,0,.25);overflow:hidden;">
+          <div style="background:linear-gradient(135deg,var(--green),#2a7a4f);color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+            <div><div style="font-size:16px;font-weight:700;">🧪 Staff Login</div><div style="font-size:11px;opacity:.8;">Uttarakhand AYUSH Drug Control Section</div></div>
+            <button id="pub-modal-close" style="background:rgba(255,255,255,.15);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:17px;line-height:1;">×</button>
+          </div>
+          <div style="padding:20px;">
+            <div id="pub-login-err" style="display:none;background:var(--red-l);color:var(--red);border-radius:6px;padding:9px 12px;font-size:13px;margin-bottom:12px;"></div>
+            <div class="fg" style="margin-bottom:12px;"><label>Username</label><input type="text" id="pub_lu" placeholder="e.g. di.usnagar / adc"></div>
+            <div class="fg" style="margin-bottom:4px;"><label>Password</label><input type="password" id="pub_lp" placeholder="Password"></div>
+            <div style="text-align:right;margin-bottom:12px;">
+              <button id="pub-forgotpwd" style="background:none;border:none;color:var(--green);font-size:12px;cursor:pointer;text-decoration:underline;padding:0;">Forgot Password?</button>
+            </div>
+            <button class="btn btn-green" style="width:100%;padding:10px;" id="pub-login-submit">Login →</button>
+            <div style="margin-top:14px;padding:10px;background:#f4f7fb;border-radius:7px;font-size:11px;color:#6b7a8d;line-height:1.6;">
+              <strong>Drug Inspector usernames:</strong><br>
+              di.usnagar · di.tehri · di.pauri · di.nainital · di.almora<br>
+              di.pithoragarh · di.champawat · di.haridwar · di.uttarkashi<br>
+              di.rudraprayag · di.chamoli · di.bageshwar · di.dehradun<br>
+              <strong>ADC:</strong> adc &nbsp;|&nbsp; <strong>Admin:</strong> admin<br><br>
+              📧 For any issues contact:<br>
+              <a href="mailto:drugportal@uttarakhandayurved.co.in" style="color:var(--green);font-weight:600;">drugportal@uttarakhandayurved.co.in</a>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <div style="padding:20px 24px;">
       <div style="background:#e8f3fb;border:1px solid #a9d0ec;color:#1e6fa8;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:13px;">
-        ℹ️ Yeh page <strong>public</strong> hai — login ki zaroorat nahi. Uttarakhand ke sabhi drug samples ki testing reports yahan available hain.
+        ℹ️ This is a <strong>public page</strong> — no login required. Drug sample testing reports of Uttarakhand are available here.
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px;">
         <div class="stat total"><div class="stat-label">Reported Samples</div><div class="stat-val">${list.length}</div></div>
@@ -869,30 +1219,36 @@ function renderPublic(){
           <div class="tab ${S.fTab==='all'?'active':''}" data-tab="all">All Reported</div>
           <div class="tab ${S.fTab==='sq'?'active':''}" data-tab="sq">✅ Standard Quality</div>
           <div class="tab ${S.fTab==='nsq'?'active':''}" data-tab="nsq">❌ Not of Standard Quality</div>
+          <div class="tab ${S.fTab==='inspector'?'active':''}" data-tab="inspector">👤 Inspector-wise Summary</div>
         </div>
-        <div class="fbar">
+        ${S.fTab==='inspector'?'':`<div class="fbar">
           <input type="text" id="fsrch" placeholder="🔍 Search drug name, serial, manufacturer..." value="${S.fSearch}" style="flex:1;">
           <select id="ffy"><option value="">All FY</option>${FYS.map(y=>`<option value="${y}" ${S.fFY===y?'selected':''}>${y}</option>`).join('')}</select>
           <button class="btn btn-outline btn-sm" id="fclr">Clear</button>
-        </div>
-        <div class="tbl-wrap"><table>
-          <thead><tr><th>Serial No.</th><th>Drug</th><th>Type</th><th>Manufacturer</th><th>Batch/Lot</th><th>District</th><th>Date Sampled</th><th>Date Reported</th><th>Lab</th><th>Result</th></tr></thead>
+        </div>`}
+        ${S.fTab==='inspector'?renderInspectorSummary():`<div class="tbl-wrap"><table>
+          <thead><tr>
+            <th>#</th>
+            <th>Medicine / Drug Name</th>
+            <th>Manufacturer</th>
+            <th>Batch No.</th>
+            <th>Expiry Date</th>
+            <th>Date Reported</th>
+            <th>Result</th>
+          </tr></thead>
           <tbody>${list.length===0
-            ?'<tr><td colspan="10"><div class="empty"><span class="eicon">🔬</span>No reported samples found</div></td></tr>'
-            :list.map(x=>`<tr>
-              <td class="serial nowrap">${x.regulatory_serial||''}</td>
-              <td><strong>${x.sample_name||''}</strong><br><span style="font-size:11px;color:var(--ink-soft)">${x.dosage_form||''} · ${x.financial_year||''}</span></td>
-              <td><span class="type-pill ${x.sample_type==='Raw Drug'?'tp-raw':'tp-med'}">${x.sample_type==='Raw Drug'?'🌿 Raw':'💊 Med'}</span></td>
-              <td class="wrap" style="font-size:11.5px;">${x.manufacturer_name||'—'}</td>
-              <td style="font-family:monospace;font-size:11.5px;">${x.sample_type==='Raw Drug'?(x.lot_number||'—'):(x.batch_number||'—')}</td>
-              <td class="nowrap">${x.district==='All'?'State Level':x.district||''}</td>
-              <td class="nowrap">${x.date_of_sampling||'—'}</td>
-              <td class="nowrap">${x.lab_date_reported||'—'}</td>
-              <td style="font-size:10.5px;">${shortLab(x.target_laboratory||'')}</td>
+            ?'<tr><td colspan="7"><div class="empty"><span class="eicon">🔬</span>No reported samples found</div></td></tr>'
+            :list.map((x,i)=>`<tr>
+              <td style="color:var(--ink-soft);font-size:12px;">${i+1}</td>
+              <td><strong>${x.sample_name||'—'}</strong></td>
+              <td style="font-size:12px;">${x.manufacturer_name||'—'}</td>
+              <td style="font-family:monospace;font-size:12px;">${x.sample_type==='Raw Drug'?(x.lot_number||'—'):(x.batch_number||'—')}</td>
+              <td class="nowrap" style="font-size:12px;">${x.expiry_date||'—'}</td>
+              <td class="nowrap" style="font-size:12px;">${x.lab_date_reported||'—'}</td>
               <td>${findingBadge(x.analytical_finding)}</td>
             </tr>`).join('')}
           </tbody>
-        </table></div>
+        </table></div>`}
       </div>
     </div>
   </div>`;
@@ -992,21 +1348,247 @@ function bindAll(){
   const cpSave=document.getElementById('cp_save');if(cpSave)cpSave.onclick=savePassword;
   // Profile save
   const epSave=document.getElementById('ep_save');if(epSave)epSave.onclick=saveProfile;
+  // First login modal
+  const flSave=document.getElementById('fl_save');if(flSave)flSave.onclick=saveFirstLogin;
+  const flSkip=document.getElementById('fl_skip');if(flSkip)flSkip.onclick=()=>{S.modal=null;render();};
+  const flPwd=document.getElementById('fl_newpwd');
+  if(flPwd) flPwd.oninput=()=>{
+    const row=document.getElementById('fl_confirmpwd_row');
+    if(row) row.style.display=flPwd.value.length>0?'':'none';
+  };
+  // Forgot password
+  const fpSend=document.getElementById('fp_send');if(fpSend)fpSend.onclick=doForgotPassword;
+  // Admin panel
+  const btnAddUser=document.getElementById('btn-add-user');
+  if(btnAddUser) btnAddUser.onclick=()=>{S.modal='adduser';render();};
+  const auSave=document.getElementById('au_save');
+  if(auSave) auSave.onclick=saveNewUser;
+  const arSave=document.getElementById('ar_save');
+  if(arSave) arSave.onclick=saveAdminResetPwd;
+  // Load users when on admin page
+  if(S.page==='admin') loadAdminUsers();
 }
 
 function bindPublic(){
-  const lb=document.getElementById('pub-login-btn');if(lb)lb.onclick=()=>{S.page='dashboard';render();};
+  // Show login modal
+  const lb=document.getElementById('pub-login-btn');
+  const modal=document.getElementById('pub-login-modal');
+  const closeBtn=document.getElementById('pub-modal-close');
+  if(lb&&modal){
+    lb.onclick=()=>{modal.style.display='flex';setTimeout(()=>{const el=document.getElementById('pub_lu');if(el)el.focus();},100);};
+    closeBtn.onclick=()=>{modal.style.display='none';document.getElementById('pub-login-err').style.display='none';};
+    modal.onclick=e=>{if(e.target===modal){modal.style.display='none';}};
+  }
+  // Login submit
+  const sub=document.getElementById('pub-login-submit');
+  if(sub){
+    sub.onclick=doPubLogin;
+    const lp=document.getElementById('pub_lp');
+    if(lp) lp.onkeydown=e=>{if(e.key==='Enter')doPubLogin();};
+  }
+  const pubFp=document.getElementById('pub-forgotpwd');
+  if(pubFp) pubFp.onclick=()=>{
+    const modal=document.getElementById('pub-login-modal');
+    if(modal) modal.style.display='none';
+    S.modal='forgotpwd';render();
+  };
+  // Filters
   document.querySelectorAll('[data-tab]').forEach(el=>el.onclick=()=>{S.fTab=el.dataset.tab;render();});
   const fs=document.getElementById('fsrch');if(fs)fs.oninput=e=>{S.fSearch=e.target.value;render();};
   const ff=document.getElementById('ffy');if(ff)ff.onchange=e=>{S.fFY=e.target.value;render();};
   const fc=document.getElementById('fclr');if(fc)fc.onclick=()=>{S.fSearch='';S.fFY='';S.fTab='all';render();};
 }
 
+async function doPubLogin(){
+  const u=document.getElementById('pub_lu').value.trim();
+  const p=document.getElementById('pub_lp').value;
+  const errEl=document.getElementById('pub-login-err');
+  errEl.style.display='none';
+  if(!u||!p){errEl.style.display='block';errEl.textContent='Please enter username and password.';return;}
+  const sub=document.getElementById('pub-login-submit');
+  sub.textContent='Logging in...';sub.disabled=true;
+  try{
+    const rows=await sbSelect('users',`username=eq.${encodeURIComponent(u)}&select=*`);
+    if(!rows||rows.length===0){errEl.style.display='block';errEl.textContent='Username not found.';sub.textContent='Login →';sub.disabled=false;return;}
+    const usr=rows[0];
+    if(usr.password!==p){errEl.style.display='block';errEl.textContent='Password galat hai.';sub.textContent='Login →';sub.disabled=false;return;}
+    S.user=usr;S.loginErr=null;
+    if(!S.samplesLoaded){
+      const srows=await sbSelect('samples','select=*&order=date_of_sampling.desc,created_at.desc&limit=2000');
+      S.samples=srows||[];S.samplesLoaded=true;
+    }
+    S.page='dashboard';
+    // First login check — prompt for email/mobile if not set
+    if(!usr.email || !usr.mobile){
+      S.modal='firstlogin';
+    }
+    render();
+  }catch(e){
+    errEl.style.display='block';errEl.textContent='Server error: '+e.message;
+    sub.textContent='Login →';sub.disabled=false;
+  }
+}
+
+// ── FIRST LOGIN SAVE ──────────────────────────────────────────────────────────
+async function saveFirstLogin(){
+  const email=(document.getElementById('fl_email')||{}).value||'';
+  const mobile=(document.getElementById('fl_mobile')||{}).value||'';
+  const newpwd=(document.getElementById('fl_newpwd')||{}).value||'';
+  const confirmpwd=(document.getElementById('fl_confirmpwd')||{}).value||'';
+  const errEl=document.getElementById('fl_err');
+  errEl.style.display='none';
+  const showErr=msg=>{errEl.style.display='block';errEl.textContent=msg;};
+  if(!email){showErr('Email address is required.');return;}
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){showErr('Please enter a valid email address.');return;}
+  if(!mobile){showErr('Mobile number is required.');return;}
+  if(!/^[0-9]{10}$/.test(mobile)){showErr('Mobile number must be 10 digits.');return;}
+  if(newpwd && newpwd.length<6){showErr('New password must be at least 6 characters.');return;}
+  if(newpwd && newpwd!==confirmpwd){showErr('Passwords do not match.');return;}
+  loader(true);
+  try{
+    const updateData={email:email.trim(),mobile:mobile.trim()};
+    if(newpwd) updateData.password=newpwd;
+    await sbUpdate('users',`id=eq.${S.user.id}`,updateData);
+    S.user={...S.user,...updateData};
+    S.modal=null;
+    S.alert={type:'ok',msg:'✅ Profile setup complete. Welcome, '+S.user.name+'!'};
+  }catch(e){
+    errEl.style.display='block';errEl.textContent='Save failed: '+e.message;
+  }
+  loader(false);render();
+}
+
+// ── FORGOT PASSWORD ───────────────────────────────────────────────────────────
+async function doForgotPassword(){
+  const email=(document.getElementById('fp_email')||{}).value||'';
+  const msgEl=document.getElementById('fp_msg');
+  const btn=document.getElementById('fp_send');
+  msgEl.style.display='none';
+  const showMsg=(msg,ok)=>{
+    msgEl.style.display='block';
+    msgEl.style.background=ok?'var(--green-l)':'var(--red-l)';
+    msgEl.style.color=ok?'var(--green)':'var(--red)';
+    msgEl.style.border=ok?'1px solid #aed9c0':'1px solid #f5b7b1';
+    msgEl.textContent=msg;
+  };
+  if(!email){showMsg('Please enter your registered email address.',false);return;}
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){showMsg('Please enter a valid email address.',false);return;}
+  btn.textContent='Sending...';btn.disabled=true;
+  try{
+    // Find user by email
+    const rows=await sbSelect('users',`email=eq.${encodeURIComponent(email)}&select=id,username,name,email`);
+    if(!rows||rows.length===0){
+      showMsg('No account found with this email address.',false);
+      btn.textContent='📧 Send New Password';btn.disabled=false;return;
+    }
+    const usr=rows[0];
+    const newPwd=generatePassword();
+    // Update password in DB
+    await sbUpdate('users',`id=eq.${usr.id}`,{password:newPwd});
+    // Send email
+    const sent=await sendPasswordEmail(email,usr.name||usr.username,newPwd);
+    if(sent){
+      showMsg('✅ A new password has been sent to '+email+'. Please check your inbox.',true);
+      btn.textContent='✅ Sent';
+    } else {
+      // Email sending failed
+      showMsg('Unable to send email. Please contact: drugportal@uttarakhandayurved.co.in',false);
+      btn.textContent='📧 Send New Password';btn.disabled=false;
+    }
+  }catch(e){
+    showMsg('Error: '+e.message,false);
+    btn.textContent='📧 Send New Password';btn.disabled=false;
+  }
+}
+
+
+// ── ADMIN FUNCTIONS ───────────────────────────────────────────────────────────
+async function loadAdminUsers(){
+  try{
+    const users = await sbSelect('users','select=*&order=role.asc,username.asc');
+    const list = document.getElementById('admin-users-list');
+    if(list) list.innerHTML = renderUserTable(users||[]);
+    bindAdminTableEvents();
+  }catch(e){
+    const list = document.getElementById('admin-users-list');
+    if(list) list.innerHTML = `<div style="padding:20px;color:var(--red);">Error loading users: ${e.message}</div>`;
+  }
+}
+
+function bindAdminTableEvents(){
+  // Reset password buttons
+  document.querySelectorAll('.admin-reset-pwd').forEach(btn=>{
+    btn.onclick=()=>{
+      S.targetUser={id:btn.dataset.id, username:btn.dataset.username, name:btn.dataset.name};
+      S.modal='resetpwd';render();
+    };
+  });
+  // Delete user buttons
+  document.querySelectorAll('.admin-del-user').forEach(btn=>{
+    btn.onclick=async()=>{
+      const name=btn.dataset.name, uname=btn.dataset.username, id=btn.dataset.id;
+      if(!confirm(`Delete account "${uname}" (${name})? This cannot be undone.`)) return;
+      loader(true);
+      try{
+        await sbFetch(`/rest/v1/users?id=eq.${id}`,{method:'DELETE'});
+        S.alert={type:'ok',msg:`✅ Account "${uname}" deleted successfully.`};
+        S.page='admin'; render();
+        await loadAdminUsers();
+      }catch(e){S.alert={type:'err',msg:'Delete failed: '+e.message};}
+      loader(false);render();
+    };
+  });
+}
+
+async function saveNewUser(){
+  const name=g('au_name'), username=g('au_username'), password=g('au_password');
+  const role=g('au_role'), district=g('au_district');
+  const email=g('au_email'), mobile=g('au_mobile');
+  const errEl=document.getElementById('au_err');
+  const showErr=msg=>{errEl.style.display='block';errEl.textContent=msg;};
+  errEl.style.display='none';
+  if(!name){showErr('Full name is required.');return;}
+  if(!username){showErr('Username is required.');return;}
+  if(!/^[a-z0-9._]+$/.test(username)){showErr('Username can only contain lowercase letters, numbers, dots and underscores.');return;}
+  if(!password||password.length<6){showErr('Password must be at least 6 characters.');return;}
+  if(mobile&&!/^[0-9]{10}$/.test(mobile)){showErr('Mobile must be 10 digits.');return;}
+  loader(true);
+  try{
+    // Check if username exists
+    const exists=await sbSelect('users',`username=eq.${encodeURIComponent(username)}&select=id`);
+    if(exists&&exists.length>0){errEl.style.display='block';errEl.textContent='Username already exists. Choose a different username.';loader(false);return;}
+    await sbInsert('users',{username,password,name,role,district,email:email||'',mobile:mobile||''});
+    S.modal=null;S.targetUser=null;
+    S.alert={type:'ok',msg:`✅ Account "${username}" created successfully.`};
+    render();
+    await loadAdminUsers();
+  }catch(e){errEl.style.display='block';errEl.textContent='Create failed: '+e.message;}
+  loader(false);render();
+}
+
+async function saveAdminResetPwd(){
+  const newpwd=g('ar_newpwd'), confirmpwd=g('ar_confirmpwd');
+  const errEl=document.getElementById('ar_err');
+  const showErr=msg=>{errEl.style.display='block';errEl.textContent=msg;};
+  errEl.style.display='none';
+  if(!newpwd||newpwd.length<6){showErr('Password must be at least 6 characters.');return;}
+  if(newpwd!==confirmpwd){showErr('Passwords do not match.');return;}
+  loader(true);
+  try{
+    await sbUpdate('users',`id=eq.${S.targetUser.id}`,{password:newpwd});
+    S.modal=null;S.targetUser=null;
+    S.alert={type:'ok',msg:`✅ Password reset successfully for "${S.targetUser?.username||'user'}".`};
+  }catch(e){errEl.style.display='block';errEl.textContent='Reset failed: '+e.message;}
+  loader(false);render();
+  if(S.page==='admin') await loadAdminUsers();
+}
+
+
 // ── SAVE ACTIONS (Supabase) ───────────────────────────────────────────────────
 async function saveNewSample(){
   const d=collectForm('np');
-  if(!d.sample_name){S.alert={type:'err',msg:'Sample Name zaroori hai.'};render();return;}
-  if(d.sample_type==='Medicine'&&!d.batch_number){S.alert={type:'err',msg:'Medicine ke liye Batch Number zaroori hai.'};render();return;}
+  if(!d.sample_name){S.alert={type:'err',msg:'Sample Name is required.'};render();return;}
+  if(d.sample_type==='Medicine'&&!d.batch_number){S.alert={type:'err',msg:'Batch Number is required for Medicine type.'};render();return;}
   loader(true);
   try{
     const serial=genSerial(d.district,d.financial_year,S.user.role);
@@ -1023,20 +1605,20 @@ async function saveNewSample(){
 
 async function saveEditSample(){
   const d=collectForm('em');
-  if(!d.sample_name){S.alert={type:'err',msg:'Sample Name zaroori hai.'};render();return;}
+  if(!d.sample_name){S.alert={type:'err',msg:'Sample Name is required.'};render();return;}
   loader(true);
   try{
     await sbUpdate('samples',`id=eq.${S.activeSample.id}`,d);
     S.samples=S.samples.map(x=>x.id===S.activeSample.id?{...x,...d}:x);
     S.modal=null;S.activeSample=null;
-    S.alert={type:'ok',msg:'✅ Sample details save ho gaye.'};
+    S.alert={type:'ok',msg:'✅ Sample details saved successfully.'};
   }catch(e){S.alert={type:'err',msg:'Update failed: '+e.message};}
   loader(false);render();
 }
 
 async function saveReport(){
   const recv=g('rpt_recv'), date=g('rpt_date'), finding=g('rpt_finding');
-  if(!date||!finding){S.alert={type:'err',msg:'Date aur Finding dono required hain.'};render();return;}
+  if(!date||!finding){S.alert={type:'err',msg:'Date and Finding are both required.'};render();return;}
   loader(true);
   try{
     const upd={workflow_status:'Reported',lab_date_received:recv||'',lab_date_reported:date,analytical_finding:finding};
@@ -1060,7 +1642,7 @@ async function savePassword(){
   try{
     await sbUpdate('users',`id=eq.${S.user.id}`,{password:newp});
     S.user={...S.user,password:newp};
-    S.modal=null;S.alert={type:'ok',msg:'✅ Password successfully change ho gaya.'};
+    S.modal=null;S.alert={type:'ok',msg:'✅ Password changed successfully.'};
   }catch(e){S.alert={type:'err',msg:'Password update failed: '+e.message};}
   loader(false);render();
 }
@@ -1068,19 +1650,23 @@ async function savePassword(){
 async function saveProfile(){
   const newName=(document.getElementById('ep_name')||{}).value||'';
   const newDist=S.user.role==='di'?((document.getElementById('ep_dist')||{}).value||S.user.district):S.user.district;
-  if(!newName.trim()){S.alert={type:'err',msg:'Naam khali nahi ho sakta.'};render();return;}
+  const newEmail=(document.getElementById('ep_email')||{}).value||'';
+  const newMobile=(document.getElementById('ep_mobile')||{}).value||'';
+  if(!newName.trim()){S.alert={type:'err',msg:'Name cannot be empty.'};render();return;}
+  if(newMobile && !/^[0-9]{10}$/.test(newMobile)){S.alert={type:'err',msg:'Mobile number must be 10 digits.'};render();return;}
   loader(true);
   try{
-    await sbUpdate('users',`id=eq.${S.user.id}`,{name:newName.trim(),district:newDist});
-    S.user={...S.user,name:newName.trim(),district:newDist};
-    S.modal=null;S.alert={type:'ok',msg:'✅ Profile update ho gaya. Purane samples unchanged hain.'};
+    await sbUpdate('users',`id=eq.${S.user.id}`,{name:newName.trim(),district:newDist,email:newEmail.trim(),mobile:newMobile.trim()});
+    S.user={...S.user,name:newName.trim(),district:newDist,email:newEmail.trim(),mobile:newMobile.trim()};
+    S.modal=null;S.alert={type:'ok',msg:'✅ Profile updated. Previous sample records remain unchanged.'};
   }catch(e){S.alert={type:'err',msg:'Profile update failed: '+e.message};}
   loader(false);render();
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init(){
-  // Load reported samples for public view even before login
+  // Always start on public page
+  S.page='public';
   try{
     const rows=await sbSelect('samples','select=*&order=date_of_sampling.desc,created_at.desc&limit=2000');
     S.samples=rows||[];
